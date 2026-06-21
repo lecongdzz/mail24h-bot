@@ -15,7 +15,9 @@ import requests
 API_TOKEN = os.getenv("TELEGRAM_TOKEN", "7123456789:ABCdefGhIJKlmNoPQRsTUVwXyZ12345")
 # Link Webhook cần đổi thành link app của bạn trên Render, ví dụ: https://mail24h.onrender.com
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "https://your-domain.onrender.com")
-WEBHOOK_URL = f"{WEBHOOK_HOST}/{API_TOKEN}/"
+WEBHOOK_URL = "https://onrender.com"
+
+
 PORT = int(os.getenv("PORT", 5000))
 
 bot = telebot.TeleBot(API_TOKEN, threaded=True)
