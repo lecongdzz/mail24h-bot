@@ -12,7 +12,7 @@ import requests
 # ==========================================
 # CẤU HÌNH BIẾN MÔI TRƯỜNG & TOKENS
 # ==========================================
-API_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7123456789:ABCdefGhIJKlmNoPQRsTUVwXyZ12345")
+API_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8669698846:AAGi3DIkUEi94YQT354zMemVs4HOXjPQoCs")
 WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST", "https://mail24h-bot.onrender.com")
 WEBHOOK_URL = f"{WEBHOOK_HOST}/{API_TOKEN}/"
 
@@ -22,7 +22,7 @@ app = Flask(__name__)
 # ==========================================
 # CƠ SỞ DỮ LIỆU GIẢ LẬP TRONG BỘ NHỚ ĐỆM (GLOBAL DICT)
 # ==========================================
-ADMINS = [8526421706]  # Thay UID Admin gốc của bạn vào đây
+ADMINS = [8526421796]  # Thay UID Admin gốc của bạn vào đây
 
 DB_CONFIG = {
     "banner_url": "https://images.unsplash.com/photo-1557200134-90327ee9fafa?w=800",
