@@ -12,10 +12,10 @@ import requests
 # ==========================================
 # CẤU HÌNH BIẾN MÔI TRƯỜNG & TOKENS
 # ==========================================
-API_TOKEN = os.getenv("TELEGRAM_TOKEN", "7123456789:ABCdefGhIJKlmNoPQRsTUVwXyZ12345")
-# Link Webhook cần đổi thành link app của bạn trên Render, ví dụ: https://mail24h.onrender.com
-WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "https://your-domain.onrender.com")
-WEBHOOK_URL = "https://onrender.com"
+API_TOKEN = os.getenv("TELEGRAM_TOKEN", "8669698846:AAGi3DIkUEi94YQT354zMemVs4HOXjPQoCs")
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "https://mail24h-bot.onrender.com") 
+WEBHOOK_URL = f"{WEBHOOK_HOST}/{API_TOKEN}/"
+
 
 
 PORT = int(os.getenv("PORT", 5000))
