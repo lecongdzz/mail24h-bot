@@ -24,7 +24,7 @@ app = Flask(__name__)
 # ==========================================
 # CƠ SỞ DỮ LIỆU GIẢ LẬP TRONG BỘ NHỚ ĐỆM (GLOBAL DICT)
 # ==========================================
-ADMINS = [6123456789]  # Thay UID Admin gốc của bạn vào đây
+ADMINS = [8526421796]  # Thay UID Admin gốc của bạn vào đây
 
 DB_CONFIG = {
     "banner_url": "https://images.unsplash.com/photo-1557200134-90327ee9fafa?w=800", # Link placeholder đẹp
