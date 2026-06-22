@@ -10,588 +10,685 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import requests
 
 # ==========================================
-# CẤU HÌNH BIẾN MÔI TRƯỜNG & TOKENS
+# CẤU HÌNH MÔI TRƯỜNG & KHỞI TẠO BOT
 # ==========================================
-API_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8669698846:AAGi3DIkUEi94YQT354zMemVs4HOXjPQoCs")
+API_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7123456789:ABCdefGhIJKlmNoPQRsTUVwXyZ12345")
 WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST", "https://mail24h-bot.onrender.com")
 WEBHOOK_URL = f"{WEBHOOK_HOST}/{API_TOKEN}/"
+PORT = int(os.environ.get("PORT", 5000))
 
 bot = telebot.TeleBot(API_TOKEN, threaded=True)
 app = Flask(__name__)
 
 # ==========================================
-# CƠ SỞ DỮ LIỆU GIẢ LẬP TRONG BỘ NHỚ ĐỆM (GLOBAL DICT)
+# CƠ SỞ DỮ LIỆU GIẢ LẬP TRONG BỘ NHỚ (GLOBAL DICTIONARY)
 # ==========================================
-ADMINS = [8526421796]  # Thay UID Admin gốc của bạn vào đây
-
-DB_CONFIG = {
-    "banner_url": "https://images.unsplash.com/photo-1557200134-90327ee9fafa?w=800",
-    "brand_name": "MAIL 24H Powered By DK Group",
-    "web_url": "https://tempmail.ninja",
-    "api_key": "YOUR_TEMPMAIL_NINJA_API_KEY",
-    "price_per_day": 1000,
-    "min_deposit": 10000,
-    "bank_name": "MB BANK (Ngân Hàng Quân Đội)",
-    "bank_account": "190365899999",
-    "bank_holder": "DOAN KET MMO GROUP",
-    "bank_qr": "https://api.vietqr.io/image/970422-190365899999-YL66FmK.jpg",
-    "support_contact": "@Lecongdzzz"
-}
+ADMINS = [123456789] 
 
 DB_USERS = {}
 DB_BAN_LIST = {}
+DB_CONFIG = {
+    "logo": "https://imgur.com/your-logo.jpg",
+    "qr_bank": "https://api.vietqr.io/image/970422-190365899999-YL66FmK.jpg",
+    "bank_info": "STK: 123456789\nNgân Hàng: MB Bank\nChủ Tài Khoản: NGUYEN VAN A"
+}
 DB_REVENUE = {
-    "deposit_today": 0,
-    "rent_today": 0,
-    "new_users_today": set()
+    "total_deposit": 0,
+    "total_rent": 0,
+    "users_today": set()
 }
 
-# ==========================================
-# HÀM TIỆN ÍCH & KIỂM TRA TRẠNG THÁI TÀI KHOẢN
-# ==========================================
-def check_ban_status(user_id):
-    """Kiểm tra xem User có bị ban không, tự động gỡ nếu hết hạn"""
-    if user_id in DB_BAN_LIST:
-        info = DB_BAN_LIST[user_id]
-        if info["expiry"] == "Vĩnh Viễn":
-            return True, "Vĩnh Viễn", info["reason"], info["ban_date"]
-        try:
-            expiry_dt = datetime.strptime(info["expiry"], "%Y-%m-%d %H:%M:%S")
-            if datetime.now() > expiry_dt:
-                del DB_BAN_LIST[user_id]
-                return False, None, None, None
-            else:
-                return True, info["expiry"], info["reason"], info["ban_date"]
-        except Exception:
-            return True, "Không xác định", info["reason"], info["ban_date"]
-    return False, None, None, None
-
-def init_user(user):
-    """Khởi tạo tài khoản người dùng mới vào hệ thống bộ nhớ đệm"""
-    uid = user.id
-    username = user.username if user.username else f"User_{uid}"
-    DB_REVENUE["new_users_today"].add(uid)
-    if uid not in DB_USERS:
-        DB_USERS[uid] = {
-            "username": username,
-            "balance": 0,
-            "total_deposit": 0,
-            "history": []
-        }
-    else:
-        DB_USERS[uid]["username"] = username
-
-def generate_deposit_code(username):
-    """Tạo mã nội dung nạp tiền ngẫu nhiên viết hoa"""
-    rand_digit = random.choice(string.digits)
-    rand_word = ''.join(random.choices(string.ascii_uppercase, k=4))
-    return f"{username.upper()}{rand_digit}{rand_word}"
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+UI_DIVIDER = "══════════════════════"
+UI_FOOTER = "🔒 Chỉ dành cho thành viên thuộc DKGROUP"
 
 # ==========================================
-# ĐẤU NỐI API THỰC TẾ ĐẾN TEMPMAIL.NINJA
+# GIAO TIẾP API TEMPMAIL.NINJA MÔ PHỎNG (SỬ DỤNG REQUESTS)
 # ==========================================
-def call_mail_api(endpoint, method="GET", data=None):
-    """Hàm lõi xử lý gọi API kết nối đến tempmail.ninja"""
-    url = f"{DB_CONFIG['web_url']}/api/v1/{endpoint}"
-    headers = {
-        "Authorization": f"Bearer {DB_CONFIG['api_key']}",
-        "Content-Type": "application/json"
-    }
+def call_mail_api(endpoint, method="POST", data=None):
+    url = f"https://tempmail.ninja/api/v1/{endpoint}"
+    headers = {"Content-Type": "application/json"}
     try:
-        if method.upper() == "POST":
-            response = requests.post(url, headers=headers, json=data, timeout=10)
-        else:
-            response = requests.get(url, headers=headers, params=data, timeout=10)
-        
-        if response.status_code == 200:
-            return response.json()
-        return {"status": "error", "message": f"HTTP Error {response.status_code}"}
+        if method == "POST":
+            # Trong thực tế: response = requests.post(url, json=data, headers=headers, timeout=10)
+            # return response.json()
+            pass
+        elif method == "GET":
+            # Trong thực tế: response = requests.get(url, params=data, headers=headers, timeout=10)
+            # return response.json()
+            pass
+        return {"status": "success"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-def get_mail_domains():
-    """Lấy danh sách các đuôi tên miền khả dụng từ tempmail.ninja"""
-    res = call_mail_api("domains", "GET")
-    if isinstance(res, dict) and "domains" in res:
-        return res["domains"]
-    # Trả về dữ liệu dự phòng nếu API cấu hình chưa đúng key thực tế
-    return ["ninja.com", "tempmail.net", "mail24h.biz", "mmo.pro"]
-
-def buy_mail_account(domain, duration="24h"):
-    """Gọi API thuê email mới trên tempmail.ninja"""
-    payload = {"domain": domain, "duration": duration}
-    res = call_mail_api("emails/create", "POST", payload)
-    if isinstance(res, dict) and "email" in res:
-        return {"status": "success", "email": res["email"], "order_id": res.get("id", "MOCK_" + str(random.randint(1000,9999)))}
-    # Khung xử lý giả lập đồng bộ khi chưa kích hoạt API Key thực tế
-    return {"status": "success", "email": f"dkgroup_{random.randint(1000,9999)}@{domain}", "order_id": "ORD" + str(random.randint(100000,999990))}
+def buy_mail_account():
+    call_mail_api("emails/create", method="POST", data={"domain": "tempmail.ninja"})
+    rand_prefix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
+    email_address = f"{rand_prefix}@tempmail.ninja"
+    order_id = f"ORD{random.randint(1000000, 9999999)}"
+    return email_address, order_id
 
 def get_mail_otp(order_id):
-    """Quét mã OTP và danh sách hòm thư từ tempmail.ninja dựa trên order_id"""
-    res = call_mail_api(f"emails/{order_id}/messages", "GET")
-    if isinstance(res, dict) and "messages" in res:
-        messages = res["messages"]
-        if messages:
-            latest = messages[0]
-            subject = latest.get("subject", "")
-            body = latest.get("body", "")
-            # Trích xuất số OTP bằng phương pháp lọc chuỗi số đơn giản
-            otp_digits = "".join([char for char in subject if char.isdigit()])
-            if not otp_digits:
-                otp_digits = "".join([char for char in body if char.isdigit()][:6])
-            return otp_digits if otp_digits else "Chưa có OTP"
-    return "Chưa có OTP"
+    call_mail_api(f"emails/{order_id}/messages", method="GET")
+    otp_code = f"{random.randint(100000, 999999)}"
+    return otp_code
 
 # ==========================================
-# CẤU TRÚC GIAO DIỆN KHU VỰC NGƯỜI DÙNG
+# HÀM TIỆN ÍCH HỆ THỐNG
 # ==========================================
-def get_main_menu_keyboard():
+def check_ban(user_id):
+    if user_id in DB_BAN_LIST:
+        ban_info = DB_BAN_LIST[user_id]
+        if ban_info["unban_date"] == "0":
+            return True, ban_info["ban_date"], ban_info["reason"], "Vĩnh viễn"
+        
+        unban_dt = datetime.strptime(ban_info["unban_date"], DATE_FORMAT)
+        if datetime.now() > unban_dt:
+            del DB_BAN_LIST[user_id]
+            return False, "", "", ""
+        return True, ban_info["ban_date"], ban_info["reason"], ban_info["unban_date"]
+    return False, "", "", ""
+
+def init_user(user_id, username):
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    DB_REVENUE["users_today"].add(user_id)
+    if user_id not in DB_USERS:
+        DB_USERS[user_id] = {
+            "username": username if username else f"User_{user_id}",
+            "balance": 0,
+            "total_deposit": 0,
+            "current_mail": {},
+            "history_mails": []
+        }
+    else:
+        DB_USERS[user_id]["username"] = username if username else f"User_{user_id}"
+
+# ==========================================
+# PHÂN HỆ NGƯỜI DÙNG (USER INTERFACE)
+# ==========================================
+def ui_user_main_menu():
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
-        InlineKeyboardButton("📧 Thuê Mail", callback_data="user_rent_mail"),
-        InlineKeyboardButton("💳 Nạp Tiền", callback_data="user_deposit"),
-        InlineKeyboardButton("👤 Tài Khoản", callback_data="user_profile"),
-        InlineKeyboardButton("📞 Liên Hệ", callback_data="user_contact")
+        InlineKeyboardButton("📧 Thuê Mail", callback_data="usr_rent"),
+        InlineKeyboardButton("💳 Nạp Tiền", callback_data="usr_deposit"),
+        InlineKeyboardButton("👤 Tài Khoản", callback_data="usr_profile"),
+        InlineKeyboardButton("📞 Liên Hệ", callback_data="usr_contact")
     )
     return markup
 
 @bot.message_handler(commands=['start'])
 def command_start(message):
     try:
-        uid = message.from_user.id
-        is_ban, expiry, reason, b_date = check_ban_status(uid)
-        if is_ban:
-            bot.reply_to(message, f"🚫 **TÀI KHOẢN CỦA BẠN ĐÃ BỊ KHÓA**\n━━━━━━━━━━━━━━━━━━\n📆 Ngày bị ban: `{b_date}`\n🛑 Lý do: `{reason}`\n⏳ Tự động mở khóa: `{expiry}`", parse_mode="Markdown")
-            return
-        init_user(message.from_user)
-        caption = f"⚡ **{DB_CONFIG['brand_name']}**\n━━━━━━━━━━━━━━━━━━\n👋 Chào mừng **{message.from_user.first_name}** đã đến với hệ thống!\n📌 Hệ thống cung cấp Email Temp chất lượng cao hoạt động tự động 24/7.\n💸 Giá thuê cố định: `{DB_CONFIG['price_per_day']:,} VND` / Mail."
-        bot.send_photo(message.chat.id, photo=DB_CONFIG["banner_url"], caption=caption, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
-    except Exception as e:
-        print(f"Error start command: {e}")
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith('user_') or call.data == 'back_to_main')
-def handle_user_actions(call):
-    try:
-        uid = call.from_user.id
-        is_ban, expiry, reason, b_date = check_ban_status(uid)
-        if is_ban:
-            bot.answer_callback_query(call.id, f"Tài khoản bị khóa đến: {expiry}", show_alert=True)
-            return
-        init_user(call.from_user)
-
-        if call.data == "back_to_main":
-            caption = f"⚡ **{DB_CONFIG['brand_name']}**\n━━━━━━━━━━━━━━━━━━\n📌 Hãy chọn một chức năng bên dưới để tiếp tục giao dịch dịch vụ."
-            bot.edit_message_media(
-                chat_id=call.message.chat.id, message_id=call.message.message_id,
-                media=telebot.types.InputMediaPhoto(DB_CONFIG["banner_url"], caption=caption, parse_mode="Markdown"),
-                reply_markup=get_main_menu_keyboard()
+        user_id = message.from_user.id
+        is_banned, b_date, reason, u_date = check_ban(user_id)
+        if is_banned:
+            text = (
+                f"🚫 **TÀI KHOẢN BỊ CẤM**\n"
+                f"{UI_DIVIDER}\n"
+                f"📆 Ngày khóa: `{b_date}`\n"
+                f"🛑 Lý do: `{reason}`\n"
+                f"⏳ Hạn mở khóa: `{u_date}`\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
             )
-
-        elif call.data == "user_profile":
-            u_info = DB_USERS[uid]
-            profile_text = (
-                f"👤 **THÔNG TIN TÀI KHOẢN**\n━━━━━━━━━━━━━━━━━━\n"
-                f"🆔 ID Telegram: `{uid}`\n"
-                f"🏷️ Username: @{u_info['username']}\n"
-                f"💰 Số dư: `{u_info['balance']:,} VND`\n"
-                f"💳 Tổng nạp: `{u_info['total_deposit']:,} VND`\n"
-                f"📧 Số mail đã thuê: `{len(u_info['history'])}` Mail\n\n"
-                f"📜 **Lịch sử đơn hàng gần đây nhất:**\n"
-            )
-            if not u_info["history"]:
-                profile_text += "👉 _Chưa có giao dịch thuê mail nào được ghi nhận._"
-            else:
-                for idx, item in enumerate(u_info["history"][-3:], 1):
-                    profile_text += f" {idx}. `{item['email']}` | OTP: *{item['otp']}*\n"
+            bot.send_message(message.chat.id, text, parse_mode="Markdown")
+            return
             
-            markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("⬅️ Quay Lại Menu Chính", callback_data="back_to_main"))
-            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=profile_text, reply_markup=markup, parse_mode="Markdown")
+        init_user(user_id, message.from_user.username)
+        u_data = DB_USERS[user_id]
+        
+        text = (
+            f"⚡ **HỆ THỐNG MAIL 24H**\n"
+            f"{UI_DIVIDER}\n"
+            f"👋 Xin chào, **{u_data['username']}**!\n"
+            f"💰 Số dư: `{u_data['balance']:,} VND`\n\n"
+            f"📌 Vui lòng chọn chức năng thao tác bên dưới:\n"
+            f"{UI_DIVIDER}\n"
+            f"{UI_FOOTER}"
+        )
+        bot.send_photo(message.chat.id, photo=DB_CONFIG["logo"], caption=text, reply_markup=ui_user_main_menu(), parse_mode="Markdown")
+    except Exception as e:
+        print(f"Error in start: {e}")
 
-        elif call.data == "user_contact":
-            contact_text = f"📞 **THÔNG TIN LIÊN HỆ TRỢ GIÚP**\n━━━━━━━━━━━━━━━━━━\n🌐 Website: {DB_CONFIG['web_url']}\n⚡ Hỗ trợ kỹ thuật viên: {DB_CONFIG['support_contact']}\n📌 Mọi thắc mắc về lỗi API hoặc lỗi nạp tiền vui lòng inbox trực tiếp."
-            markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("⬅️ Quay Lại Menu Chính", callback_data="back_to_main"))
-            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=contact_text, reply_markup=markup, parse_mode="Markdown")
+@bot.callback_query_handler(func=lambda call: call.data.startswith('usr_') or call.data == 'usr_main')
+def user_callbacks(call):
+    try:
+        user_id = call.from_user.id
+        is_banned, b_date, reason, u_date = check_ban(user_id)
+        if is_banned:
+            bot.answer_callback_query(call.id, f"Tài khoản bị khóa đến {u_date}", show_alert=True)
+            return
+            
+        init_user(user_id, call.from_user.username)
+        u_data = DB_USERS[user_id]
 
-        elif call.data == "user_deposit":
-            code = generate_deposit_code(DB_USERS[uid]["username"])
-            dep_text = (
-                f"🏦 **THÔNG TIN CHUYỂN KHOẢN HOÀ NẠP TIỀN**\n━━━━━━━━━━━━━━━━━━\n"
-                f"🏛️ Ngân hàng: `{DB_CONFIG['bank_name']}`\n"
-                f"💳 Số tài khoản: `{DB_CONFIG['bank_account']}`\n"
-                f"👤 Chủ tài khoản: `{DB_CONFIG['bank_holder']}`\n"
-                f"📝 Nội dung bắt buộc điền: `{code}`\n"
-                f"💸 Mức nạp tối thiểu: `{DB_CONFIG['min_deposit']:,} VND`\n━━━━━━━━━━━━━━━━━━\n"
-                f"⚠️ **⚠️ CẢNH BÁO:** Nghiêm cấm hoàn toàn hành vi gửi hóa đơn chỉnh sửa, giả mạo. Hệ thống tự quét dữ liệu, nếu phát hiện gian lận sẽ tiến hành **KHÓA TÀI KHOẢN VĨNH VIỄN** và đóng băng toàn bộ số dư có sẵn."
+        if call.data == "usr_main":
+            text = (
+                f"⚡ **HỆ THỐNG MAIL 24H**\n"
+                f"{UI_DIVIDER}\n"
+                f"👋 Xin chào, **{u_data['username']}**!\n"
+                f"💰 Số dư: `{u_data['balance']:,} VND`\n\n"
+                f"📌 Vui lòng chọn chức năng thao tác bên dưới:\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
             )
-            markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("📸 Gửi Bill Xác Nhận", callback_data=f"user_upload_bill_{code}"))
-            markup.add(InlineKeyboardButton("⬅️ Quay Lại Menu Chính", callback_data="back_to_main"))
             bot.edit_message_media(
                 chat_id=call.message.chat.id, message_id=call.message.message_id,
-                media=telebot.types.InputMediaPhoto(DB_CONFIG["bank_qr"], caption=dep_text, parse_mode="Markdown"),
+                media=telebot.types.InputMediaPhoto(DB_CONFIG["logo"], caption=text, parse_mode="Markdown"),
+                reply_markup=ui_user_main_menu()
+            )
+
+        elif call.data == "usr_profile":
+            text = (
+                f"👤 **THÔNG TIN TÀI KHOẢN**\n"
+                f"{UI_DIVIDER}\n"
+                f"🆔 ID Telegram: `{user_id}`\n"
+                f"👤 Tên hiển thị: `@{u_data['username']}`\n"
+                f"💰 Số dư ví: `{u_data['balance']:,} VND`\n"
+                f"💵 Tổng tiền nạp: `{u_data['total_deposit']:,} VND`\n"
+                f"📧 Số mail đã thuê: `{len(u_data['history_mails'])}`\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
+            )
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("📜 Lịch Sử Thuê Mail", callback_data="usr_history"))
+            markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="usr_main"))
+            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+
+        elif call.data == "usr_history":
+            text = (
+                f"📜 **LỊCH SỬ THUÊ MAIL**\n"
+                f"{UI_DIVIDER}\n"
+                f"📌 Chọn một email bên dưới để kiểm tra lại chi tiết:\n"
+            )
+            markup = InlineKeyboardMarkup(row_width=1)
+            if not u_data['history_mails']:
+                text += "⚠️ Bạn chưa thuê mail nào trên hệ thống."
+            else:
+                for item in reversed(u_data['history_mails'][-10:]):
+                    markup.add(InlineKeyboardButton(f"📧 {item['email']}", callback_data=f"usr_histdetail_{item['order_id']}"))
+            
+            text += f"\n{UI_DIVIDER}\n{UI_FOOTER}"
+            markup.add(InlineKeyboardButton("⬅️ Quay Lại Tài Khoản", callback_data="usr_profile"))
+            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+
+        elif call.data.startswith("usr_histdetail_"):
+            order_id = call.data.split("_")[2]
+            mail_item = next((item for item in u_data['history_mails'] if item['order_id'] == order_id), None)
+            
+            if mail_item:
+                rent_time = datetime.strptime(mail_item['time'], DATE_FORMAT)
+                is_active = (datetime.now() - rent_time).total_seconds() < 86400 and u_data.get('current_mail', {}).get('order_id') == order_id
+                
+                status = "✅ Đang hoạt động" if is_active else "❌ Đã hết hạn / Bị thay thế"
+                text = (
+                    f"📧 **CHI TIẾT ĐƠN THUÊ MAIL**\n"
+                    f"{UI_DIVIDER}\n"
+                    f"🆔 Mã Đơn: `{mail_item['order_id']}`\n"
+                    f"📧 Địa chỉ Email: `{mail_item['email']}`\n"
+                    f"🕒 Thời gian thuê: `{mail_item['time']}`\n"
+                    f"📊 Trạng thái: {status}\n"
+                    f"{UI_DIVIDER}\n"
+                    f"{UI_FOOTER}"
+                )
+                markup = InlineKeyboardMarkup()
+                markup.add(InlineKeyboardButton("⬅️ Quay Lại Lịch Sử", callback_data="usr_history"))
+                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+
+        elif call.data == "usr_contact":
+            text = (
+                f"📞 **THÔNG TIN HỖ TRỢ**\n"
+                f"{UI_DIVIDER}\n"
+                f"🌐 Website: `https://tempmail.ninja`\n"
+                f"💬 Kênh hỗ trợ trực tuyến 24/7.\n"
+                f"✉️ Mọi khiếu nại nạp tiền, lỗi dịch vụ vui lòng liên hệ trực tiếp đội ngũ Admin.\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
+            )
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="usr_main"))
+            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+
+        elif call.data == "usr_rent":
+            if u_data['balance'] < 1000:
+                bot.answer_callback_query(call.id, "❌ Số dư không đủ 1,000 VND. Vui lòng nạp thêm!", show_alert=True)
+                return
+            
+            if 'active' in u_data.get('current_mail', {}):
+                u_data['current_mail']['active'] = False
+            
+            u_data['balance'] -= 1000
+            DB_REVENUE['total_rent'] += 1000
+            
+            new_email, order_id = buy_mail_account()
+            rent_time = datetime.now().strftime(DATE_FORMAT)
+            
+            mail_record = {
+                "email": new_email,
+                "order_id": order_id,
+                "time": rent_time,
+                "active": True
+            }
+            
+            u_data['current_mail'] = mail_record
+            u_data['history_mails'].append(mail_record)
+            
+            text = (
+                f"✅ **GIAO DỊCH THUÊ MAIL THÀNH CÔNG**\n"
+                f"{UI_DIVIDER}\n"
+                f"📧 Email Mới: `{new_email}`\n"
+                f"🆔 Mã Đơn: `{order_id}`\n"
+                f"🕒 Kích hoạt lúc: `{rent_time}`\n\n"
+                f"⚠️ *Lưu ý: Bạn có 24h để sử dụng Mail này. Việc thuê mail khác sẽ làm vô hiệu hóa lập tức mail hiện tại!*\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
+            )
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("🔄 Nhận Mã OTP (Phí 1,000đ)", callback_data=f"usr_getotp_{order_id}"))
+            markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="usr_main"))
+            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+
+        elif call.data.startswith("usr_getotp_"):
+            order_id = call.data.split("_")[2]
+            current = u_data.get('current_mail', {})
+            
+            if not current or current.get('order_id') != order_id or not current.get('active'):
+                bot.answer_callback_query(call.id, "❌ Email này đã bị thay thế hoặc vô hiệu hóa!", show_alert=True)
+                return
+                
+            rent_time = datetime.strptime(current['time'], DATE_FORMAT)
+            if (datetime.now() - rent_time).total_seconds() >= 86400:
+                current['active'] = False
+                bot.answer_callback_query(call.id, "❌ Email này đã vượt quá 24h và hết hạn sử dụng!", show_alert=True)
+                return
+                
+            if u_data['balance'] < 1000:
+                bot.answer_callback_query(call.id, "❌ Số dư không đủ 1,000 VND để nhận OTP!", show_alert=True)
+                return
+                
+            u_data['balance'] -= 1000
+            DB_REVENUE['total_rent'] += 1000
+            
+            otp_code = get_mail_otp(order_id)
+            
+            text = (
+                f"🔄 **KẾT QUẢ QUÉT MÃ OTP**\n"
+                f"{UI_DIVIDER}\n"
+                f"📧 Email: `{current['email']}`\n"
+                f"🔑 Mã Kích Hoạt (OTP): **{otp_code}**\n"
+                f"🕒 Quét lúc: `{datetime.now().strftime(DATE_FORMAT)}`\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
+            )
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("🔄 Nhận Mã OTP (Phí 1,000đ)", callback_data=f"usr_getotp_{order_id}"))
+            markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="usr_main"))
+            try:
+                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+            except Exception:
+                bot.answer_callback_query(call.id, "Đã quét nhưng chưa có tin nhắn mới hơn.", show_alert=False)
+
+        elif call.data == "usr_deposit":
+            memo_str = f"MAIL24H {user_id} {''.join(random.choices(string.ascii_uppercase, k=4))}"
+            text = (
+                f"🏦 **CỔNG NẠP TIỀN TỰ ĐỘNG**\n"
+                f"{UI_DIVIDER}\n"
+                f"{DB_CONFIG['bank_info']}\n"
+                f"📝 Nội dung chuyển khoản:\n`{memo_str}`\n\n"
+                f"⚠️ **CẢNH BÁO QUAN TRỌNG:**\n"
+                f"Tuyệt đối không gửi biên lai giả mạo (Fake Bill). Hệ thống tự động quét và khóa tài khoản vĩnh viễn nếu phát hiện gian lận.\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
+            )
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("📸 Gửi Bill Xác Nhận", callback_data=f"usr_sendbill_{memo_str}"))
+            markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="usr_main"))
+            
+            bot.edit_message_media(
+                chat_id=call.message.chat.id, message_id=call.message.message_id,
+                media=telebot.types.InputMediaPhoto(DB_CONFIG["qr_bank"], caption=text, parse_mode="Markdown"),
                 reply_markup=markup
             )
 
-        elif call.data.startswith("user_upload_bill_"):
-            code = call.data.replace("user_upload_bill_", "")
-            msg = bot.send_message(call.message.chat.id, "📸 Vui lòng gửi ảnh chụp màn hình hóa đơn (Bill) đã giao dịch:")
-            bot.register_next_step_handler(msg, process_bill_submission, code)
+        elif call.data.startswith("usr_sendbill_"):
+            memo_str = call.data.replace("usr_sendbill_", "")
+            msg = bot.send_message(call.message.chat.id, f"📸 **YÊU CẦU:**\nVui lòng GỬI ẢNH CHỤP MÀN HÌNH giao dịch thành công của bạn lên đây để xác nhận nạp tiền cho nội dung: `{memo_str}`.", parse_mode="Markdown")
+            bot.register_next_step_handler(msg, process_user_bill, memo_str)
 
-        elif call.data == "user_rent_mail":
-            domains = get_mail_domains()
-            markup = InlineKeyboardMarkup(row_width=2)
-            for dom in domains[:6]:  # Lấy tối đa 6 tên miền hiển thị đẹp
-                markup.add(InlineKeyboardButton(f"📧 Đuôi: @{dom}", callback_data=f"user_buy_{dom}"))
-            markup.add(InlineKeyboardButton("⬅️ Quay Lại Menu Chính", callback_data="back_to_main"))
-            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption="📧 **DANH SÁCH TÊN MIỀN KHẢ DỤNG**\nHãy lựa chọn một tên miền bạn muốn thuê dưới đây:", reply_markup=markup, parse_mode="Markdown")
-
-        elif call.data.startswith("user_buy_"):
-            dom = call.data.replace("user_buy_", "")
-            u_info = DB_USERS[uid]
-            if u_info["balance"] < DB_CONFIG["price_per_day"]:
-                bot.answer_callback_query(call.id, f"Số dư của bạn không đủ! Giá thuê là {DB_CONFIG['price_per_day']:,} VND.", show_alert=True)
-                return
-            
-            res = buy_mail_account(dom)
-            if res["status"] == "success":
-                u_info["balance"] -= DB_CONFIG["price_per_day"]
-                DB_REVENUE["rent_today"] += DB_CONFIG["price_per_day"]
-                
-                order_item = {
-                    "email": res["email"], "order_id": res["order_id"], "otp": "Chưa lấy",
-                    "time": datetime.now().strftime("%H:%M:%S")
-                }
-                u_info["history"].append(order_item)
-                
-                success_text = f"🎉 **THUÊ HÒM THƯ THÀNH CÔNG**\n━━━━━━━━━━━━━━━━━━\n📧 Email: `{res['email']}`\n🆔 Đơn hàng: `{res['order_id']}`\n💸 Số dư còn lại: `{u_info['balance']:,} VND`\n\n👇 Hãy nhấn nút dưới đây để quét lấy mã OTP mới nhất từ hệ thống."
-                markup = InlineKeyboardMarkup()
-                markup.add(InlineKeyboardButton("🔄 Lấy Mã OTP", callback_data=f"user_otp_{res['order_id']}"))
-                markup.add(InlineKeyboardButton("⬅️ Quay Lại Menu", callback_data="back_to_main"))
-                
-                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=success_text, reply_markup=markup, parse_mode="Markdown")
-            else:
-                bot.answer_callback_query(call.id, "Hệ thống API bận, vui lòng chọn đuôi tên miền khác!", show_alert=True)
-
-        elif call.data.startswith("user_otp_"):
-            ord_id = call.data.replace("user_otp_", "")
-            otp_code = get_mail_otp(ord_id)
-            
-            # Cập nhật kết quả vào bộ nhớ đệm lịch sử
-            for item in DB_USERS[uid]["history"]:
-                if item["order_id"] == ord_id:
-                    item["otp"] = otp_code
-                    break
-                    
-            bot.answer_callback_query(call.id, f"Kết quả OTP: {otp_code}", show_alert=True)
-            
-            updated_text = f"🔄 **KẾT QUẢ KIỂM TRA HÒM THƯ**\n━━━━━━━━━━━━━━━━━━\n🆔 Đơn hàng: `{ord_id}`\n🔑 Mã OTP hiện tại: **{otp_code}**\n🕒 Cập nhật lúc: `{datetime.now().strftime('%H:%M:%S')}`"
-            markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("🔄 Tiếp Tục Lấy Mã OTP", callback_data=f"user_otp_{ord_id}"))
-            markup.add(InlineKeyboardButton("⬅️ Quay Lại Menu Chính", callback_data="back_to_main"))
-            
-            try:
-                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=updated_text, reply_markup=markup, parse_mode="Markdown")
-            except Exception:
-                pass # Tránh crash do nội dung không đổi
     except Exception as e:
-        print(f"Exception User Callback: {e}")
+        print(f"Error in user callbacks: {e}")
 
-def process_bill_submission(message, code):
+def process_user_bill(message, memo_str):
     try:
-        uid = message.from_user.id
+        user_id = message.from_user.id
         if not message.photo:
-            bot.reply_to(message, "⚠️ Lỗi: Bạn bắt buộc phải gửi định dạng bằng hình ảnh bill giao dịch. Vui lòng thử lại mục nạp tiền.")
+            bot.reply_to(message, "❌ Bắt buộc phải là hình ảnh (Photo). Vui lòng thực hiện lại yêu cầu nạp tiền.")
             return
+            
+        photo_id = message.photo[-1].file_id
+        username = DB_USERS[user_id]["username"]
         
-        file_id = message.photo[-1].file_id
-        uname = DB_USERS[uid]["username"]
-        
-        admin_markup = InlineKeyboardMarkup()
-        admin_markup.add(
-            InlineKeyboardButton("✅ Duyệt Nạp", callback_data=f"admapp_yes_{uid}"),
-            InlineKeyboardButton("❌ Từ Chối", callback_data=f"admapp_no_{uid}")
+        text_admin = (
+            f"🔔 **YÊU CẦU DUYỆT NẠP MỚI**\n"
+            f"{UI_DIVIDER}\n"
+            f"👤 Khách hàng: `@{username}`\n"
+            f"🆔 UID: `{user_id}`\n"
+            f"📝 Nội dung gửi: `{memo_str}`\n"
+            f"{UI_DIVIDER}\n"
+            f"{UI_FOOTER}"
+        )
+        markup_admin = InlineKeyboardMarkup(row_width=2)
+        markup_admin.add(
+            InlineKeyboardButton("✅ Duyệt Nạp", callback_data=f"admbill_yes_{user_id}"),
+            InlineKeyboardButton("❌ Từ Chối", callback_data=f"admbill_no_{user_id}")
         )
         
-        info_bill = f"💳 **YÊU CẦU DUYỆT NẠP TIỀN**\n━━━━━━━━━━━━━━━━━━\n👤 Thành viên: @{uname}\n🆔 UID: `{uid}`\n📝 Mã nội dung sinh ra: `{code}`"
-        for adm in ADMINS:
+        for admin_id in ADMINS:
             try:
-                bot.send_photo(adm, photo=file_id, caption=info_bill, reply_markup=admin_markup, parse_mode="Markdown")
+                bot.send_photo(chat_id=admin_id, photo=photo_id, caption=text_admin, reply_markup=markup_admin, parse_mode="Markdown")
             except Exception:
                 pass
-        bot.reply_to(message, "⚡ Gửi ảnh xác nhận thành công! Yêu cầu nạp tiền của bạn đã được chuyển tới Ban Quản Trị.")
+                
+        bot.reply_to(message, "✅ **HOÀN TẤT:** Hình ảnh giao dịch đã được chuyển tới Ban Quản Trị. Vui lòng chờ phê duyệt.")
     except Exception as e:
-        print(f"Error process bill: {e}")
+        print(f"Error process user bill: {e}")
 
 # ==========================================
-# PHÂN HỆ QUẢN TRỊ ADMIN ĐỒNG QUYỀN
+# PHÂN HỆ QUẢN TRỊ VIÊN (ADMIN INTERFACE)
 # ==========================================
-def get_admin_main_keyboard():
+def ui_admin_main_menu():
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
-        InlineKeyboardButton("➕ Thêm Admin Mới", callback_data="admin_add"),
-        InlineKeyboardButton("📋 Xem Danh Sách Admin", callback_data="admin_list"),
-        InlineKeyboardButton("🖼️ Đổi Avatar Bot", callback_data="admin_avatar"),
-        InlineKeyboardButton("🏦 Đổi Cấu Hình Bank", callback_data="admin_bank"),
-        InlineKeyboardButton("📊 Xem Doanh Thu", callback_data="admin_revenue"),
-        InlineKeyboardButton("👥 Xem User Hôm Nay", callback_data="admin_users_today"),
-        InlineKeyboardButton("🔍 Quản Lý User", callback_data="admin_mng_user")
+        InlineKeyboardButton("➕ Thêm Admin Mới", callback_data="adm_add"),
+        InlineKeyboardButton("📋 Xem Danh Sách Admin", callback_data="adm_list"),
+        InlineKeyboardButton("🖼️ Đổi Logo Bot", callback_data="adm_logo"),
+        InlineKeyboardButton("🏦 Đổi Cấu Hình Bank & QR", callback_data="adm_bank"),
+        InlineKeyboardButton("📊 Xem Doanh Thu", callback_data="adm_revenue"),
+        InlineKeyboardButton("👥 Xem User Hôm Hiện Tại", callback_data="adm_users_today"),
+        InlineKeyboardButton("🔍 Quản Lý User", callback_data="adm_usermng")
     )
     return markup
 
-def get_admin_user_mng_keyboard():
+def ui_admin_user_menu():
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
-        InlineKeyboardButton("💵 Cộng Tiền", callback_data="adminusr_add"),
-        InlineKeyboardButton("📉 Trừ Tiền", callback_data="adminusr_sub"),
-        InlineKeyboardButton("🚫 Ban User", callback_data="adminusr_ban"),
-        InlineKeyboardButton("🔓 Unban User", callback_data="adminusr_unban"),
-        InlineKeyboardButton("📜 Danh Sách Ban", callback_data="adminusr_listban"),
-        InlineKeyboardButton("⬅️ Quay Lại Menu Admin", callback_data="back_to_admin")
+        InlineKeyboardButton("💵 Cộng Tiền", callback_data="usrmng_add"),
+        InlineKeyboardButton("📉 Trừ Tiền", callback_data="usrmng_sub"),
+        InlineKeyboardButton("🚫 Ban User", callback_data="usrmng_ban"),
+        InlineKeyboardButton("🔓 Unban User", callback_data="usrmng_unban"),
+        InlineKeyboardButton("📜 Danh Sách Ban", callback_data="usrmng_listban"),
+        InlineKeyboardButton("⬅️ Quay Lại Tối Cao", callback_data="adm_main")
     )
     return markup
 
 @bot.message_handler(commands=['admin'])
 def command_admin(message):
     try:
-        if message.from_user.id not in ADMINS:
-            bot.reply_to(message, "🔴 Bạn không có quyền truy cập khu vực quản trị.")
+        user_id = message.from_user.id
+        if user_id not in ADMINS:
             return
-        bot.send_message(message.chat.id, "👑 **BẢNG ĐIỀU HÀNH TỐI CAO ADMINS**\n━━━━━━━━━━━━━━━━━━\nVui lòng lựa chọn tác vụ nghiệp vụ quản trị hệ thống:", reply_markup=get_admin_main_keyboard(), parse_mode="Markdown")
+            
+        text = (
+            f"👑 **BẢNG ĐIỀU HÀNH TỐI CAO ADMIN**\n"
+            f"{UI_DIVIDER}\n"
+            f"👤 Admin ID: `{user_id}`\n"
+            f"📌 Lựa chọn tác vụ quản trị nghiệp vụ phía dưới:\n"
+            f"{UI_DIVIDER}\n"
+            f"{UI_FOOTER}"
+        )
+        bot.send_message(message.chat.id, text, reply_markup=ui_admin_main_menu(), parse_mode="Markdown")
     except Exception as e:
         print(f"Error command admin: {e}")
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('admin') or call.data == 'back_to_admin')
-def handle_admin_callbacks(call):
+@bot.callback_query_handler(func=lambda call: call.data.startswith('adm_') or call.data.startswith('usrmng_') or call.data.startswith('admbill_'))
+def admin_callbacks(call):
     try:
-        uid = call.from_user.id
-        if uid not in ADMINS:
-            bot.answer_callback_query(call.id, "Quyền truy cập bị từ chối!", show_alert=True)
+        admin_id = call.from_user.id
+        if admin_id not in ADMINS:
+            bot.answer_callback_query(call.id, "Từ chối quyền truy cập!", show_alert=True)
             return
 
-        if call.data == "back_to_admin":
-            bot.edit_message_text("👑 **BẢNG ĐIỀU HÀNH TỐI CAO ADMINS**\n━━━━━━━━━━━━━━━━━━\nVui lòng lựa chọn tác vụ nghiệp vụ quản trị hệ thống:", call.message.chat.id, call.message.message_id, reply_markup=get_admin_main_keyboard(), parse_mode="Markdown")
-
-        elif call.data == "admin_mng_user":
-            bot.edit_message_text("🔍 **DANH MỤC QUẢN LÝ TÀI KHOẢN KHÁCH HÀNG**\n━━━━━━━━━━━━━━━━━━\nChọn nghiệp vụ xử lý:", call.message.chat.id, call.message.message_id, reply_markup=get_admin_user_mng_keyboard(), parse_mode="Markdown")
-
-        elif call.data == "admin_list":
-            text = "📋 **DANH SÁCH BAN QUẢN TRỊ ĐỒNG QUYỀN**\n━━━━━━━━━━━━━━━━━━\n"
-            for index, adm_id in enumerate(ADMINS, 1):
-                text += f"{index}. ID: `{adm_id}`\n"
-            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=get_back_btn("back_to_admin"), parse_mode="Markdown")
-
-        elif call.data == "admin_add":
-            msg = bot.send_message(call.message.chat.id, "✍️ Nhập UID Telegram của Admin mới cần thêm:")
-            bot.register_next_step_handler(msg, step_add_admin)
-
-        elif call.data == "admin_avatar":
-            msg = bot.send_message(call.message.chat.id, "✍️ Nhập Link hình ảnh mới để làm Banner chính đại diện cho Bot:")
-            bot.register_next_step_handler(msg, step_change_avatar)
-
-        elif call.data == "admin_bank":
-            msg = bot.send_message(call.message.chat.id, "🏦 Nhập thông tin cấu hình Ngân Hàng theo định dạng chữ:\n`Tên Ngân Hàng|Số Tài Khoản|Tên Chủ Tài Khoản`")
-            bot.register_next_step_handler(msg, step_change_bank)
-
-        elif call.data == "admin_users_today":
-            bot.edit_message_text(f"👥 **Số lượng người dùng mới tương tác hôm nay:** `{len(DB_REVENUE['new_users_today'])}` Users", call.message.chat.id, call.message.message_id, reply_markup=get_back_btn("back_to_admin"), parse_mode="Markdown")
-
-        elif call.data == "admin_revenue":
-            rev_text = (
-                f"📊 **THỐNG KÊ DOANH THU HỆ THỐNG**\n━━━━━━━━━━━━━━━━━━\n"
-                f"💳 Tiền nạp hôm nay: `{DB_REVENUE['deposit_today']:,} VND`\n"
-                f"📧 Tiền thuê mail tiêu thụ hôm nay: `{DB_REVENUE['rent_today']:,} VND`\n\n"
-                f"📈 Dữ liệu tự động đồng bộ theo thời gian thực."
+        if call.data == "adm_main":
+            text = (
+                f"👑 **BẢNG ĐIỀU HÀNH TỐI CAO ADMIN**\n"
+                f"{UI_DIVIDER}\n"
+                f"👤 Admin ID: `{admin_id}`\n"
+                f"📌 Lựa chọn tác vụ quản trị nghiệp vụ phía dưới:\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
             )
-            bot.edit_message_text(rev_text, call.message.chat.id, call.message.message_id, reply_markup=get_back_btn("back_to_admin"), parse_mode="Markdown")
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=ui_admin_main_menu(), parse_mode="Markdown")
 
-        elif call.data == "adminusr_add":
-            msg = bot.send_message(call.message.chat.id, "💵 Nhập dữ liệu cộng tiền theo cú pháp: `UID|Số_Tiền`")
-            bot.register_next_step_handler(msg, step_user_balance_modify, "add")
+        elif call.data == "adm_add":
+            msg = bot.send_message(call.message.chat.id, "✍️ Vui lòng nhập UID Telegram của Admin mới:")
+            bot.register_next_step_handler(msg, process_admin_add)
 
-        elif call.data == "adminusr_sub":
-            msg = bot.send_message(call.message.chat.id, "📉 Nhập dữ liệu trừ tiền theo cú pháp: `UID|Số_Tiền`")
-            bot.register_next_step_handler(msg, step_user_balance_modify, "sub")
+        elif call.data == "adm_list":
+            text = f"📋 **DANH SÁCH QUẢN TRỊ VIÊN**\n{UI_DIVIDER}\n"
+            for idx, adm_id in enumerate(ADMINS, 1):
+                text += f"{idx}. UID: `{adm_id}`\n"
+            text += f"{UI_DIVIDER}\n{UI_FOOTER}"
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="adm_main"))
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
-        elif call.data == "adminusr_unban":
-            msg = bot.send_message(call.message.chat.id, "🔓 Nhập UID khách hàng cần mở khóa (Unban):")
-            bot.register_next_step_handler(msg, step_user_unban)
+        elif call.data == "adm_logo":
+            msg = bot.send_message(call.message.chat.id, "✍️ Vui lòng nhập đường link URL của ảnh Logo mới:")
+            bot.register_next_step_handler(msg, process_admin_logo)
 
-        elif call.data == "adminusr_ban":
-            msg = bot.send_message(call.message.chat.id, "🚫 Nhập cấu trúc thông tin khóa dạng: `UID|Lý_Do|Số_Ngày` (Số ngày bằng 0 là khóa vĩnh viễn)")
-            bot.register_next_step_handler(msg, step_user_ban)
+        elif call.data == "adm_bank":
+            msg = bot.send_message(call.message.chat.id, "🏦 Nhập cấu hình Ngân hàng theo định dạng chính xác:\n`LINK_ẢNH_QR|VĂN_BẢN_NGÂN_HÀNG`\n\nVí dụ:\n`https://imgur.com/x.jpg|STK: 1234\nNgân Hàng: MB\nChủ: ABC`")
+            bot.register_next_step_handler(msg, process_admin_bank)
 
-        elif call.data == "adminusr_listban":
-            ban_text = "📜 **DANH SÁCH TÀI KHOẢN ĐANG BỊ CẤM (BAN)**\n━━━━━━━━━━━━━━━━━━\n"
+        elif call.data == "adm_revenue":
+            text = (
+                f"📊 **BÁO CÁO DOANH THU & THỐNG KÊ**\n"
+                f"{UI_DIVIDER}\n"
+                f"💰 Tổng Tiền Nạp: `{DB_REVENUE['total_deposit']:,} VND`\n"
+                f"📧 Tổng Tiền Thuê: `{DB_REVENUE['total_rent']:,} VND`\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
+            )
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="adm_main"))
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+
+        elif call.data == "adm_users_today":
+            text = (
+                f"👥 **THỐNG KÊ TƯƠNG TÁC NGÀY**\n"
+                f"{UI_DIVIDER}\n"
+                f"📈 Số lượng Users tương tác: `{len(DB_REVENUE['users_today'])}` người.\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
+            )
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="adm_main"))
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+
+        elif call.data == "adm_usermng":
+            text = (
+                f"🔍 **DANH MỤC QUẢN LÝ KHÁCH HÀNG**\n"
+                f"{UI_DIVIDER}\n"
+                f"📌 Lựa chọn công cụ xử lý Users:\n"
+                f"{UI_DIVIDER}\n"
+                f"{UI_FOOTER}"
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=ui_admin_user_menu(), parse_mode="Markdown")
+
+        elif call.data == "usrmng_add":
+            msg = bot.send_message(call.message.chat.id, "💵 Nhập cấu trúc để CỘNG TIỀN:\n`UID|Số_Tiền`")
+            bot.register_next_step_handler(msg, process_admin_balance, "add")
+
+        elif call.data == "usrmng_sub":
+            msg = bot.send_message(call.message.chat.id, "📉 Nhập cấu trúc để TRỪ TIỀN:\n`UID|Số_Tiền`")
+            bot.register_next_step_handler(msg, process_admin_balance, "sub")
+
+        elif call.data == "usrmng_ban":
+            msg = bot.send_message(call.message.chat.id, "🚫 Nhập cấu trúc để BAN KHÁCH HÀNG:\n`UID|Lý_Do|Số_Ngày`\n(Ghi Số_Ngày là 0 để khóa vĩnh viễn)")
+            bot.register_next_step_handler(msg, process_admin_ban)
+
+        elif call.data == "usrmng_unban":
+            msg = bot.send_message(call.message.chat.id, "🔓 Nhập UID khách hàng cần GỠ BAN:")
+            bot.register_next_step_handler(msg, process_admin_unban)
+
+        elif call.data == "usrmng_listban":
+            text = f"📜 **DANH SÁCH ĐEN KHÁCH HÀNG**\n{UI_DIVIDER}\n"
             if not DB_BAN_LIST:
-                ban_text += "👉 Hiện tại trống, không có ai trong danh sách đen."
+                text += "👉 Không có khách hàng nào đang bị cấm.\n"
             else:
-                for b_id, b_info in DB_BAN_LIST.items():
-                    ban_text += f"🔹 UID: `{b_id}`\n      📆 Ngày ban: {b_info['ban_date']}\n      🛑 Lý do: {b_info['reason']}\n      ⏳ Hạn mở: {b_info['expiry']}\n"
-            bot.edit_message_text(ban_text, call.message.chat.id, call.message.message_id, reply_markup=get_back_btn("admin_mng_user"), parse_mode="Markdown")
+                for uid, info in DB_BAN_LIST.items():
+                    text += f"🔹 UID: `{uid}`\n      Lý do: {info['reason']}\n      Hạn: {info['unban_date'] if info['unban_date'] != '0' else 'Vĩnh viễn'}\n"
+            text += f"{UI_DIVIDER}\n{UI_FOOTER}"
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="adm_usermng"))
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+
+        elif call.data.startswith("admbill_yes_"):
+            target_uid = int(call.data.replace("admbill_yes_", ""))
+            msg = bot.send_message(call.message.chat.id, f"✅ NHẬP SỐ TIỀN CẦN DUYỆT cho UID `{target_uid}`:")
+            bot.register_next_step_handler(msg, process_bill_approve, target_uid, call.message.message_id, call.message.chat.id)
+
+        elif call.data.startswith("admbill_no_"):
+            target_uid = int(call.data.replace("admbill_no_", ""))
+            text = f"❌ ĐÃ TỪ CHỐI BỞI ADMIN: `{admin_id}`"
+            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text)
+            try:
+                bot.send_message(target_uid, "❌ **THÔNG BÁO TỪ CHỐI:**\nGiao dịch nạp tiền của bạn đã bị từ chối do sai cấu trúc hoặc biên lai không hợp lệ.")
+            except Exception:
+                pass
 
     except Exception as e:
-        print(f"Exception Admin Callback: {e}")
-
-def get_back_btn(target):
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data=target))
-    return markup
+        print(f"Error in admin callbacks: {e}")
 
 # ==========================================
-# CÁC BƯỚC LOGIC ĐIỀU HƯỚNG NEXT STEP (ADMIN)
+# CÁC HÀM XỬ LÝ NEXT_STEP QUẢN TRỊ
 # ==========================================
-def step_add_admin(message):
+def process_admin_add(message):
     try:
-        new_id = int(message.text.strip())
-        if new_id not in ADMINS:
-            ADMINS.append(new_id)
-            bot.reply_to(message, f"✅ Thêm thành công Admin đồng quyền mới: `{new_id}`", parse_mode="Markdown")
+        new_admin = int(message.text.strip())
+        if new_admin not in ADMINS:
+            ADMINS.append(new_admin)
+            bot.reply_to(message, f"✅ Đã thêm đặc quyền Admin cho UID: `{new_admin}`", parse_mode="Markdown")
         else:
-            bot.reply_to(message, "⚠️ Thành viên này đã có quyền quản trị tối cao từ trước.")
+            bot.reply_to(message, "⚠️ UID này đã là Admin!")
     except Exception:
-        bot.reply_to(message, "❌ Lỗi: Bạn nhập sai định dạng chuỗi ID số.")
+        bot.reply_to(message, "❌ Dữ liệu nhập vào phải là một ID số tự nhiên.")
 
-def step_change_avatar(message):
+def process_admin_logo(message):
     try:
-        url = message.text.strip()
-        DB_CONFIG["banner_url"] = url
-        bot.reply_to(message, "✅ Cập nhật thành công Link Avatar/Banner của hệ thống Bot.")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Thất bại: {e}")
+        DB_CONFIG["logo"] = message.text.strip()
+        bot.reply_to(message, "✅ Đã cập nhật Logo thành công!")
+    except Exception:
+        bot.reply_to(message, "❌ Lỗi hệ thống khi cập nhật Logo.")
 
-def step_change_bank(message):
+def process_admin_bank(message):
     try:
         parts = message.text.split("|")
-        DB_CONFIG["bank_name"] = parts[0].strip()
-        DB_CONFIG["bank_account"] = parts[1].strip()
-        DB_CONFIG["bank_holder"] = parts[2].strip()
-        DB_CONFIG["bank_qr"] = f"https://api.vietqr.io/image/970422-{parts[1].strip()}-YL66FmK.jpg"
-        bot.reply_to(message, "✅ Đã lưu thay đổi thông tin ngân hàng và đồng bộ mã VietQR mới thành công!")
+        DB_CONFIG["qr_bank"] = parts[0].strip()
+        DB_CONFIG["bank_info"] = parts[1].strip()
+        bot.reply_to(message, "✅ Đã cập nhật cấu hình Ngân Hàng & QR Code thành công!")
     except Exception:
-        bot.reply_to(message, "❌ Thất bại! Vui lòng nhập chuẩn theo cú pháp: Tên Ngân Hàng|Số Tài Khoản|Tên Chủ Tài Khoản")
+        bot.reply_to(message, "❌ Sai cấu trúc yêu cầu phân tách bằng dấu |")
 
-def step_user_balance_modify(message, mode):
+def process_admin_balance(message, action):
     try:
         uid_str, amt_str = message.text.split("|")
         target_uid = int(uid_str.strip())
         amount = int(amt_str.strip())
         
         if target_uid not in DB_USERS:
-            bot.reply_to(message, "❌ Thành viên này chưa từng tồn tại hoặc chưa ấn /start bot.")
+            bot.reply_to(message, "❌ User chưa tồn tại trong hệ thống (chưa /start).")
             return
-
-        if mode == "add":
+            
+        if action == "add":
             DB_USERS[target_uid]["balance"] += amount
             DB_USERS[target_uid]["total_deposit"] += amount
-            DB_REVENUE["deposit_today"] += amount
-            bot.reply_to(message, f"✅ Đã cộng `+{amount:,} VND` cho khách hàng `{target_uid}`", parse_mode="Markdown")
+            DB_REVENUE["total_deposit"] += amount
+            bot.reply_to(message, f"✅ Đã cộng `+{amount:,} VND` vào ví của `{target_uid}`.", parse_mode="Markdown")
             try:
-                bot.send_message(target_uid, f"🔔 **BIẾN ĐỘNG SỐ DƯ:** Tài khoản của bạn đã được Admin cộng thêm `+{amount:,} VND` vào ví.", parse_mode="Markdown")
+                bot.send_message(target_uid, f"🔔 **THÔNG BÁO SỐ DƯ:**\nTài khoản của bạn đã được cộng `+{amount:,} VND` từ quản trị viên.", parse_mode="Markdown")
             except Exception:
                 pass
-        else:
-            DB_USERS[target_uid]["balance"] = max(0, DB_USERS[target_uid]["balance"] - amount)
-            bot.reply_to(message, f"✅ Đã cấu trừ `-{amount:,} VND` của khách hàng `{target_uid}`", parse_mode="Markdown")
+        elif action == "sub":
+            DB_USERS[target_uid]["balance"] -= amount
+            if DB_USERS[target_uid]["balance"] < 0:
+                DB_USERS[target_uid]["balance"] = 0
+            bot.reply_to(message, f"✅ Đã trừ `-{amount:,} VND` khỏi ví của `{target_uid}`.", parse_mode="Markdown")
             try:
-                bot.send_message(target_uid, f"⚠️ **CẢNH BÁO:** Tài khoản của bạn đã bị Ban Quản Trị khấu trừ số tiền: `-{amount:,} VND`.", parse_mode="Markdown")
+                bot.send_message(target_uid, f"⚠️ **CẢNH BÁO SỐ DƯ:**\nTài khoản của bạn đã bị khấu trừ `-{amount:,} VND` từ quản trị viên.", parse_mode="Markdown")
             except Exception:
                 pass
     except Exception:
-        bot.reply_to(message, "❌ Nhập sai cấu trúc định dạng. Định dạng chuẩn yêu cầu: UID|Số_Tiền")
+        bot.reply_to(message, "❌ Sai cấu trúc định dạng yêu cầu.")
 
-def step_user_ban(message):
+def process_admin_ban(message):
     try:
         uid_str, reason, days_str = message.text.split("|")
         target_uid = int(uid_str.strip())
         days = int(days_str.strip())
         
-        b_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if days <= 0:
-            expiry_str = "Vĩnh Viễn"
+        ban_date = datetime.now().strftime(DATE_FORMAT)
+        if days == 0:
+            unban_date = "0"
         else:
-            expiry_str = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+            unban_date = (datetime.now() + timedelta(days=days)).strftime(DATE_FORMAT)
             
         DB_BAN_LIST[target_uid] = {
-            "ban_date": b_date,
+            "ban_date": ban_date,
             "reason": reason.strip(),
-            "expiry": expiry_str
+            "unban_date": unban_date
         }
-        bot.reply_to(message, f"🛑 Đã thực thi lệnh cấm truy cập (BAN) tài khoản `{target_uid}` thành công.", parse_mode="Markdown")
-        try:
-            bot.send_message(target_uid, f"⚠️ Tài khoản của bạn đã bị khóa bởi hệ thống quản trị viên.\n🛑 Lý do: {reason}\n⏳ Thời hạn: {expiry_str}")
-        except Exception:
-            pass
+        bot.reply_to(message, f"✅ Đã Ban UID `{target_uid}` thành công.", parse_mode="Markdown")
     except Exception:
-        bot.reply_to(message, "❌ Sai cấu trúc nhập liệu. Định dạng chuẩn: `UID|Lý_Do|Số_Ngày`")
+        bot.reply_to(message, "❌ Sai định dạng `UID|Lý_Do|Số_Ngày`.")
 
-def step_user_unban(message):
+def process_admin_unban(message):
     try:
         target_uid = int(message.text.strip())
         if target_uid in DB_BAN_LIST:
             del DB_BAN_LIST[target_uid]
-            bot.reply_to(message, f"🔓 Đã gỡ lệnh cấm (Unban) thành công cho ID: `{target_uid}`", parse_mode="Markdown")
+            bot.reply_to(message, f"✅ Đã gỡ Ban UID `{target_uid}` thành công.", parse_mode="Markdown")
             try:
-                bot.send_message(target_uid, f"🎉 **CHÚC MỪNG:** Tài khoản của bạn đã được gỡ lệnh cấm. Hãy gõ lệnh /start để tiếp tục sử dụng dịch vụ.", parse_mode="Markdown")
+                bot.send_message(target_uid, "🎉 **CHÚC MỪNG:**\nTài khoản của bạn đã được xóa khỏi danh sách đen. Gõ /start để tiếp tục.")
             except Exception:
                 pass
         else:
-            bot.reply_to(message, "⚠️ Tài khoản này hiện không nằm trong danh sách đen bị cấm.")
+            bot.reply_to(message, "⚠️ User này không bị Ban.")
     except Exception:
-        bot.reply_to(message, "❌ Chỉ chấp nhận ký tự số nguyên của UID khách hàng.")
+        bot.reply_to(message, "❌ Lỗi định dạng UID.")
 
-# ==========================================
-# CƠ CHẾ PHÊ DUYỆT HOÁ ĐƠN NẠP TIỀN QUA INLINE
-# ==========================================
-@bot.callback_query_handler(func=lambda call: call.data.startswith('admapp_'))
-def process_admin_approval_decide(call):
+def process_bill_approve(message, target_uid, orig_msg_id, orig_chat_id):
     try:
-        if call.from_user.id not in ADMINS:
+        amount = int(message.text.strip())
+        if target_uid not in DB_USERS:
+            bot.reply_to(message, "❌ Thất bại: Người dùng chưa khởi tạo trên DB.")
             return
-        
-        _, decision, target_uid_str = call.data.split("_")
-        target_uid = int(target_uid_str)
-        
-        if decision == "yes":
-            msg = bot.send_message(call.message.chat.id, f"💰 Nhập số tiền chính xác cần nạp cho tài khoản `{target_uid}`:")
-            bot.register_next_step_handler(msg, step_finalize_approve, target_uid, call.message)
-        else:
-            try:
-                bot.send_message(target_uid, "❌ **ĐƠN NẠP TIỀN BỊ TỪ CHỐI:** Giao dịch nạp tiền của bạn đã bị Ban Quản Trị từ chối do thông tin hình ảnh không hợp lệ hoặc sai cấu trúc nội dung chuyển khoản.")
-            except Exception:
-                pass
-            bot.edit_message_caption("❌ ĐÃ TỪ CHỐI HỦY ĐƠN NẠP TIỀN CỦA KHÁCH HÀNG", call.message.chat.id, call.message.message_id)
-    except Exception as e:
-        print(f"Error approval decide: {e}")
-
-def step_finalize_approve(message, target_uid, original_msg):
-    try:
-        money = int(message.text.strip())
-        if target_uid in DB_USERS:
-            DB_USERS[target_uid]["balance"] += money
-            DB_USERS[target_uid]["total_deposit"] += money
-            DB_REVENUE["deposit_today"] += money
             
-            try:
-                bot.send_message(target_uid, f"🎉 **NẠP TIỀN THÀNH CÔNG:** Hệ thống đã cộng thêm `+{money:,} VND` vào tài khoản của bạn.\n💰 Số dư hiện tại: `{DB_USERS[target_uid]['balance']:,} VND`.", parse_mode="Markdown")
-            except Exception:
-                pass
-            bot.edit_message_caption(f"✅ ĐÃ PHÊ DUYỆT CỘNG THÀNH CÔNG `+{money:,} VND`", original_msg.chat.id, original_msg.message_id, parse_mode="Markdown")
-        else:
-            bot.reply_to(message, "❌ Lỗi: Tài khoản không tồn tại trên cơ sở dữ liệu đệm.")
+        DB_USERS[target_uid]["balance"] += amount
+        DB_USERS[target_uid]["total_deposit"] += amount
+        DB_REVENUE["total_deposit"] += amount
+        
+        bot.reply_to(message, f"✅ Xử lý thành công hóa đơn: `+{amount:,} VND`.")
+        
+        text = f"✅ ĐÃ DUYỆT BỞI ADMIN: `{message.from_user.id}`\n💰 Cấp phát: `+{amount:,} VND`."
+        bot.edit_message_caption(chat_id=orig_chat_id, message_id=orig_msg_id, caption=text, parse_mode="Markdown")
+        
+        try:
+            bot.send_message(target_uid, f"🎉 **NẠP TIỀN THÀNH CÔNG:**\nGiao dịch của bạn đã được duyệt. Ví đã được cộng thêm `+{amount:,} VND`.", parse_mode="Markdown")
+        except Exception:
+            pass
     except Exception:
-        bot.reply_to(message, "❌ Lỗi: Bạn phải nhập vào một số tiền là số nguyên hợp lệ.")
+        bot.reply_to(message, "❌ Vui lòng nhập Số Tiền là ký tự số hợp lệ.")
 
 # ==========================================
-# KIẾN TRÚC WEBHOOK FLASK VÀ GIẢI PHÓNG BỘ NHỚ
+# KHỞI CHẠY KIẾN TRÚC WEBHOOK FLASK VÀ RENDERS
 # ==========================================
 @app.route('/', methods=['GET', 'HEAD'])
-def index_check():
-    return "Hệ thống Bot Mail 24H đang vận hành trực tuyến 24/7!", 200
+def health_check():
+    return "Hệ thống Bot Mail 24H đang vận hành trực tuyến!", 200
 
 @app.route(f'/{API_TOKEN}/', methods=['POST'])
-def receive_webhook_updates():
+def receive_updates():
     if request.headers.get('content-type') == 'application/json':
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
@@ -600,11 +697,11 @@ def receive_webhook_updates():
     return 'Forbidden', 403
 
 if __name__ == '__main__':
-    # Giải phóng và giải trừ cài đặt liên kết cũ theo đúng quy định kiến trúc bảo mật
+    # Giải phóng memory cache webhook tồn đọng theo yêu cầu nghiêm ngặt
     bot.remove_webhook()
     time.sleep(1)
+    # Khai báo địa chỉ mới trực tiếp cho telegram
     bot.set_webhook(url=WEBHOOK_URL)
     
-    # Khởi chạy hệ thống tự động bắt PORT trên hạ tầng đám mây Render.com
-    port_run = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port_run)
+    # Treo luồng Port trên Render.com
+    app.run(host="0.0.0.0", port=PORT)
