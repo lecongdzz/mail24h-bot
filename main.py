@@ -12,7 +12,7 @@ import requests
 # ==========================================
 # CẤU HÌNH MÔI TRƯỜNG & KHỞI TẠO BOT
 # ==========================================
-API_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7123456789:ABCdefGhIJKlmNoPQRsTUVwXyZ12345")
+API_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8669698846:AAGi3DIkUEi94YQT354zMemVs4HOXjPQoCs")
 WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST", "https://mail24h-bot.onrender.com")
 WEBHOOK_URL = f"{WEBHOOK_HOST}/{API_TOKEN}/"
 PORT = int(os.environ.get("PORT", 5000))
@@ -23,7 +23,7 @@ app = Flask(__name__)
 # ==========================================
 # CƠ SỞ DỮ LIỆU GIẢ LẬP TRONG BỘ NHỚ (GLOBAL DICTIONARY)
 # ==========================================
-ADMINS = [123456789] 
+ADMINS = [8526421796] 
 
 DB_USERS = {}
 DB_BAN_LIST = {}
