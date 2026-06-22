@@ -28,7 +28,8 @@ ADMINS = [8526421796]
 DB_USERS = {}
 DB_BAN_LIST = {}
 DB_CONFIG = {
-    "logo": "https://imgur.com/your-logo.jpg",
+    # Sử dụng link ảnh Unsplash siêu ổn định làm mặc định để không bị lỗi send_photo
+    "logo": "https://images.unsplash.com/photo-1557200134-90327ee9fafa?w=800",
     "qr_bank": "https://api.vietqr.io/image/970422-190365899999-YL66FmK.jpg",
     "bank_info": "STK: 123456789\nNgân Hàng: MB Bank\nChủ Tài Khoản: NGUYEN VAN A"
 }
@@ -90,7 +91,6 @@ def check_ban(user_id):
     return False, "", "", ""
 
 def init_user(user_id, username):
-    today_str = datetime.now().strftime("%Y-%m-%d")
     DB_REVENUE["users_today"].add(user_id)
     if user_id not in DB_USERS:
         DB_USERS[user_id] = {
@@ -146,7 +146,13 @@ def command_start(message):
             f"{UI_DIVIDER}\n"
             f"{UI_FOOTER}"
         )
-        bot.send_photo(message.chat.id, photo=DB_CONFIG["logo"], caption=text, reply_markup=ui_user_main_menu(), parse_mode="Markdown")
+        
+        # Cơ chế Fallback: Nếu gửi ảnh hỏng, tự động chuyển sang gửi chữ
+        try:
+            bot.send_photo(message.chat.id, photo=DB_CONFIG["logo"], caption=text, reply_markup=ui_user_main_menu(), parse_mode="Markdown")
+        except Exception:
+            bot.send_message(message.chat.id, text=text, reply_markup=ui_user_main_menu(), parse_mode="Markdown")
+            
     except Exception as e:
         print(f"Error in start: {e}")
 
@@ -172,11 +178,19 @@ def user_callbacks(call):
                 f"{UI_DIVIDER}\n"
                 f"{UI_FOOTER}"
             )
-            bot.edit_message_media(
-                chat_id=call.message.chat.id, message_id=call.message.message_id,
-                media=telebot.types.InputMediaPhoto(DB_CONFIG["logo"], caption=text, parse_mode="Markdown"),
-                reply_markup=ui_user_main_menu()
-            )
+            try:
+                bot.edit_message_media(
+                    chat_id=call.message.chat.id, message_id=call.message.message_id,
+                    media=telebot.types.InputMediaPhoto(DB_CONFIG["logo"], caption=text, parse_mode="Markdown"),
+                    reply_markup=ui_user_main_menu()
+                )
+            except Exception:
+                # Nếu không thể sửa ảnh (do ban nãy gửi dạng text fallback), thì ta sẽ xóa tin nhắn cũ và gửi mới
+                try:
+                    bot.delete_message(call.message.chat.id, call.message.message_id)
+                except Exception:
+                    pass
+                bot.send_message(call.message.chat.id, text=text, reply_markup=ui_user_main_menu(), parse_mode="Markdown")
 
         elif call.data == "usr_profile":
             text = (
@@ -193,7 +207,10 @@ def user_callbacks(call):
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton("📜 Lịch Sử Thuê Mail", callback_data="usr_history"))
             markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="usr_main"))
-            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+            try:
+                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+            except Exception:
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode="Markdown")
 
         elif call.data == "usr_history":
             text = (
@@ -210,7 +227,10 @@ def user_callbacks(call):
             
             text += f"\n{UI_DIVIDER}\n{UI_FOOTER}"
             markup.add(InlineKeyboardButton("⬅️ Quay Lại Tài Khoản", callback_data="usr_profile"))
-            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+            try:
+                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+            except Exception:
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode="Markdown")
 
         elif call.data.startswith("usr_histdetail_"):
             order_id = call.data.split("_")[2]
@@ -233,7 +253,10 @@ def user_callbacks(call):
                 )
                 markup = InlineKeyboardMarkup()
                 markup.add(InlineKeyboardButton("⬅️ Quay Lại Lịch Sử", callback_data="usr_history"))
-                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+                try:
+                    bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+                except Exception:
+                    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode="Markdown")
 
         elif call.data == "usr_contact":
             text = (
@@ -247,7 +270,10 @@ def user_callbacks(call):
             )
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="usr_main"))
-            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+            try:
+                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+            except Exception:
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode="Markdown")
 
         elif call.data == "usr_rent":
             if u_data['balance'] < 1000:
@@ -286,7 +312,10 @@ def user_callbacks(call):
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton("🔄 Nhận Mã OTP (Phí 1,000đ)", callback_data=f"usr_getotp_{order_id}"))
             markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="usr_main"))
-            bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+            try:
+                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
+            except Exception:
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode="Markdown")
 
         elif call.data.startswith("usr_getotp_"):
             order_id = call.data.split("_")[2]
@@ -326,7 +355,7 @@ def user_callbacks(call):
             try:
                 bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=text, reply_markup=markup, parse_mode="Markdown")
             except Exception:
-                bot.answer_callback_query(call.id, "Đã quét nhưng chưa có tin nhắn mới hơn.", show_alert=False)
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode="Markdown")
 
         elif call.data == "usr_deposit":
             memo_str = f"MAIL24H {user_id} {''.join(random.choices(string.ascii_uppercase, k=4))}"
@@ -344,11 +373,18 @@ def user_callbacks(call):
             markup.add(InlineKeyboardButton("📸 Gửi Bill Xác Nhận", callback_data=f"usr_sendbill_{memo_str}"))
             markup.add(InlineKeyboardButton("⬅️ Quay Lại", callback_data="usr_main"))
             
-            bot.edit_message_media(
-                chat_id=call.message.chat.id, message_id=call.message.message_id,
-                media=telebot.types.InputMediaPhoto(DB_CONFIG["qr_bank"], caption=text, parse_mode="Markdown"),
-                reply_markup=markup
-            )
+            try:
+                bot.edit_message_media(
+                    chat_id=call.message.chat.id, message_id=call.message.message_id,
+                    media=telebot.types.InputMediaPhoto(DB_CONFIG["qr_bank"], caption=text, parse_mode="Markdown"),
+                    reply_markup=markup
+                )
+            except Exception:
+                try:
+                    bot.delete_message(call.message.chat.id, call.message.message_id)
+                except Exception:
+                    pass
+                bot.send_message(call.message.chat.id, text=text, reply_markup=markup, parse_mode="Markdown")
 
         elif call.data.startswith("usr_sendbill_"):
             memo_str = call.data.replace("usr_sendbill_", "")
@@ -399,12 +435,12 @@ def process_user_bill(message, memo_str):
 def ui_admin_main_menu():
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
-        InlineKeyboardButton("➕ Thêm Admin Mới", callback_data="adm_add"),
-        InlineKeyboardButton("📋 Xem Danh Sách Admin", callback_data="adm_list"),
-        InlineKeyboardButton("🖼️ Đổi Logo Bot", callback_data="adm_logo"),
-        InlineKeyboardButton("🏦 Đổi Cấu Hình Bank & QR", callback_data="adm_bank"),
-        InlineKeyboardButton("📊 Xem Doanh Thu", callback_data="adm_revenue"),
-        InlineKeyboardButton("👥 Xem User Hôm Hiện Tại", callback_data="adm_users_today"),
+        InlineKeyboardButton("➕ Thêm Admin", callback_data="adm_add"),
+        InlineKeyboardButton("📋 DS Admin", callback_data="adm_list"),
+        InlineKeyboardButton("🖼️ Đổi Logo", callback_data="adm_logo"),
+        InlineKeyboardButton("🏦 Cấu Hình Bank", callback_data="adm_bank"),
+        InlineKeyboardButton("📊 Doanh Thu", callback_data="adm_revenue"),
+        InlineKeyboardButton("👥 User Hôm Nay", callback_data="adm_users_today"),
         InlineKeyboardButton("🔍 Quản Lý User", callback_data="adm_usermng")
     )
     return markup
@@ -417,7 +453,7 @@ def ui_admin_user_menu():
         InlineKeyboardButton("🚫 Ban User", callback_data="usrmng_ban"),
         InlineKeyboardButton("🔓 Unban User", callback_data="usrmng_unban"),
         InlineKeyboardButton("📜 Danh Sách Ban", callback_data="usrmng_listban"),
-        InlineKeyboardButton("⬅️ Quay Lại Tối Cao", callback_data="adm_main")
+        InlineKeyboardButton("⬅️ Quay Lại", callback_data="adm_main")
     )
     return markup
 
