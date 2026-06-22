@@ -35,7 +35,7 @@ DB_CONFIG = {
     "qr_bank": "https://api.vietqr.io/image/970422-190365899999-YL66FmK.jpg",
     "bank_info": "STK: 123456789\nNgân Hàng: MB Bank\nChủ Tài Khoản: NGUYEN VAN A",
     "price": 1000,
-    "welcome_text": "Cung cấp Email chất lượng & Số dư nội bộ"
+    "welcome_text": "🏢 <b>HỆ THỐNG MAIL 24H</b> 🏢\n\n📌 <b>CHỨC NĂNG CHÍNH</b>\n💰 Kiểm tra số dư\n📜 Xem lịch sử giao dịch\n📊 Theo dõi thu nhập\n👥 Quản lý dịch vụ\n🔔 Thông báo mới"
 }
 
 DB_STATS = {
@@ -54,19 +54,38 @@ UI_FOOTER = (
 )
 
 # ==========================================
-# GIAO TIẾP API ẨN DANH CHIẾN THUẬT
+# GIAO TIẾP API ẨN DANH TRÌNH DUYỆT (CHỐNG BOT)
 # ==========================================
+# Khởi tạo session để lưu cookies nếu có
+req_session = requests.Session()
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Linux; Android 13; Xiaomi Redmi Pad 2 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8",
+    "Referer": "https://tempmail.ninja/",
+    "Origin": "https://tempmail.ninja",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin"
+}
+
 def call_mail_api(endpoint, method="POST", data=None):
     url = f"https://tempmail.ninja/api/v1/{endpoint}"
-    headers = {"Content-Type": "application/json"}
     try:
-        # Nếu đấu API thật: requests.post(url, json=data, headers=headers)
+        # Nếu đấu API thật:
+        # if method == "POST":
+        #     res = req_session.post(url, json=data, headers=HEADERS, timeout=10)
+        # else:
+        #     res = req_session.get(url, headers=HEADERS, timeout=10)
+        # return res.json()
+        
+        # Fake trả về trạng thái thành công
         return {"status": "success"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 def buy_mail_account():
-    call_mail_api("emails/create", method="POST", data={"domain": "tempmail.ninja"})
+    call_mail_api("emails/create", method="POST", data={"domain": "maily.lat"})
     rand_prefix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
     email_address = f"{rand_prefix}@maily.lat"
     order_id = f"ORD{random.randint(1000000, 9999999)}"
@@ -75,7 +94,8 @@ def buy_mail_account():
 def get_mail_otp(order_id):
     call_mail_api(f"emails/{order_id}/messages", method="GET")
     otp_code = f"{random.randint(100000, 999999)}"
-    return otp_code
+    # Giả lập form tin nhắn từ TikTok như trên web
+    return f"{otp_code} là mã gồm 6 chữ số của bạn\n\"TikTok\" <register@account.tiktok.com>"
 
 # ==========================================
 # HÀM TIỆN ÍCH HỆ THỐNG
@@ -166,17 +186,9 @@ def command_start(message):
         init_user(user_id, uname)
         
         text = (
-            f" 🏢 <b>HỆ THỐNG MAIL 24H</b> 🏢 \n"
-            f"{UI_DIVIDER}\n"
             f"👋 Xin chào @{uname}!\n"
             f"{UI_DIVIDER}\n"
-            f"💼 <b>{DB_CONFIG['welcome_text']}</b>\n\n"
-            f"📌 <b>CHỨC NĂNG CHÍNH</b>\n"
-            f"💰 Kiểm tra số dư\n"
-            f"📜 Xem lịch sử giao dịch\n"
-            f"📊 Theo dõi thu nhập\n"
-            f"👥 Quản lý dịch vụ\n"
-            f"🔔 Thông báo mới\n"
+            f"{DB_CONFIG['welcome_text']}\n"
             f"{UI_DIVIDER}\n"
             f"👇 <b>Chọn chức năng ở bàn phím bên dưới</b>\n\n"
             f"{UI_FOOTER}"
@@ -198,9 +210,7 @@ def handle_user_menu(message):
     try:
         user_id = message.from_user.id
         is_banned, b_date, reason, u_date = check_ban(user_id)
-        if is_banned:
-            bot.send_message(message.chat.id, f"🚫 Tài khoản bị khóa đến {u_date}. Liên hệ Admin @tangtuongtacsieureadmin", parse_mode="HTML")
-            return
+        if is_banned: return
             
         uname = message.from_user.username if message.from_user.username else f"User_{user_id}"
         init_user(user_id, uname)
@@ -227,14 +237,18 @@ def handle_user_menu(message):
             text = (
                 f"📜 <b>LỊCH SỬ THUÊ MAIL</b>\n"
                 f"{UI_DIVIDER}\n"
-                f"📌 Chọn một email bên dưới để kiểm tra lại chi tiết:\n"
+                f"📌 Chọn một email bên dưới để kiểm tra lại chi tiết hoặc lấy OTP (Mã):\n"
             )
             markup = InlineKeyboardMarkup(row_width=1)
             if not u_data['history_mails']:
                 text += "⚠️ Bạn chưa thuê mail nào trên hệ thống."
             else:
+                # Hiển thị 10 email gần nhất
                 for item in reversed(u_data['history_mails'][-10:]):
-                    markup.add(InlineKeyboardButton(f"📧 {item['email']}", callback_data=f"usr_histdetail_{item['order_id']}"))
+                    # Ký hiệu mail còn sống hay chết
+                    rent_time = datetime.strptime(item['time'], DATE_FORMAT)
+                    icon = "🟢" if (datetime.now() - rent_time).total_seconds() < 86400 else "🔴"
+                    markup.add(InlineKeyboardButton(f"{icon} {item['email']}", callback_data=f"usr_histdetail_{item['order_id']}"))
             
             text += f"\n{UI_DIVIDER}\n{UI_FOOTER}"
             bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="HTML")
@@ -255,17 +269,13 @@ def handle_user_menu(message):
                 bot.send_message(message.chat.id, f"❌ Số dư không đủ <code>{price:,} VND</code>. Vui lòng nạp thêm!", parse_mode="HTML")
                 return
             
-            if 'active' in u_data.get('current_mail', {}):
-                u_data['current_mail']['active'] = False
-            
             u_data['balance'] -= price
             rent_time = datetime.now().strftime(DATE_FORMAT)
             DB_STATS["spent"].append({"uid": user_id, "username": u_data['username'], "amount": price, "time": rent_time})
             
             new_email, order_id = buy_mail_account()
             
-            mail_record = {"email": new_email, "order_id": order_id, "time": rent_time, "active": True}
-            u_data['current_mail'] = mail_record
+            mail_record = {"email": new_email, "order_id": order_id, "time": rent_time}
             u_data['history_mails'].append(mail_record)
             
             text = (
@@ -274,12 +284,12 @@ def handle_user_menu(message):
                 f"📧 Email Mới: <code>{new_email}</code>\n"
                 f"🆔 Mã Đơn: <code>{order_id}</code>\n"
                 f"🕒 Kích hoạt lúc: <code>{rent_time}</code>\n\n"
-                f"⚠️ <i>Mail cũ đã bị vô hiệu hóa. Mail mới tồn tại 24h.</i>\n"
+                f"⚠️ <i>Lưu ý: Mail có hạn sử dụng 24h kể từ lúc tạo. Quá 24h mail sẽ tự động bị xóa khỏi hệ thống.</i>\n"
                 f"{UI_DIVIDER}\n"
                 f"{UI_FOOTER}"
             )
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton(f"🔄 Nhận Mã OTP (Phí {price:,}đ)", callback_data=f"usr_getotp_{order_id}"))
+            markup.add(InlineKeyboardButton(f"📥 Nhận mã code (Phí {price:,}đ)", callback_data=f"usr_getotp_{order_id}"))
             bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="HTML")
 
         elif message.text == "💳 Nạp Tiền":
@@ -307,7 +317,7 @@ def handle_user_menu(message):
         print(f"Error handling user menu: {e}")
 
 # ==========================================
-# XỬ LÝ INLINE CỦA USER (NHẬN OTP, GỬI BILL)
+# XỬ LÝ INLINE CỦA USER (NHẬN OTP, GỬI BILL, LỊCH SỬ)
 # ==========================================
 @bot.callback_query_handler(func=lambda call: call.data.startswith('usr_'))
 def handle_user_inline(call):
@@ -318,17 +328,18 @@ def handle_user_inline(call):
 
         if call.data.startswith("usr_getotp_"):
             order_id = call.data.split("_")[2]
-            current = u_data.get('current_mail', {})
             price = DB_CONFIG["price"]
             
-            if not current or current.get('order_id') != order_id or not current.get('active'):
-                bot.answer_callback_query(call.id, "❌ Email này đã bị thay thế hoặc vô hiệu hóa!", show_alert=True)
+            # Tìm mail trong lịch sử
+            mail_item = next((item for item in u_data['history_mails'] if item['order_id'] == order_id), None)
+            
+            if not mail_item:
+                bot.answer_callback_query(call.id, "❌ Không tìm thấy thông tin email này!", show_alert=True)
                 return
                 
-            rent_time = datetime.strptime(current['time'], DATE_FORMAT)
+            rent_time = datetime.strptime(mail_item['time'], DATE_FORMAT)
             if (datetime.now() - rent_time).total_seconds() >= 86400:
-                current['active'] = False
-                bot.answer_callback_query(call.id, "❌ Email này đã vượt quá 24h và hết hạn sử dụng!", show_alert=True)
+                bot.answer_callback_query(call.id, "❌ Email này đã vượt quá 24h và bị hệ thống xóa bỏ!", show_alert=True)
                 return
                 
             if u_data['balance'] < price:
@@ -339,19 +350,19 @@ def handle_user_inline(call):
             now_str = datetime.now().strftime(DATE_FORMAT)
             DB_STATS["spent"].append({"uid": user_id, "username": u_data['username'], "amount": price, "time": now_str})
             
-            otp_code = get_mail_otp(order_id)
+            otp_data = get_mail_otp(order_id)
             
             text = (
-                f"🔄 <b>KẾT QUẢ QUÉT MÃ OTP</b>\n"
+                f"📥 <b>HỘP THƯ ĐẾN (INBOX)</b>\n"
                 f"{UI_DIVIDER}\n"
-                f"📧 Email: <code>{current['email']}</code>\n"
-                f"🔑 Mã Kích Hoạt (OTP): <b>{otp_code}</b>\n"
+                f"📧 Email: <code>{mail_item['email']}</code>\n"
+                f"💬 Nội dung:\n<b>{otp_data}</b>\n\n"
                 f"🕒 Quét lúc: <code>{now_str}</code>\n"
                 f"{UI_DIVIDER}\n"
                 f"{UI_FOOTER}"
             )
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton(f"🔄 Nhận Tiếp OTP (Phí {price:,}đ)", callback_data=f"usr_getotp_{order_id}"))
+            markup.add(InlineKeyboardButton(f"🔄 Tiếp tục quét mã (Phí {price:,}đ)", callback_data=f"usr_getotp_{order_id}"))
             try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode="HTML")
             except: pass
 
@@ -361,20 +372,25 @@ def handle_user_inline(call):
             
             if mail_item:
                 rent_time = datetime.strptime(mail_item['time'], DATE_FORMAT)
-                is_active = (datetime.now() - rent_time).total_seconds() < 86400 and u_data.get('current_mail', {}).get('order_id') == order_id
+                time_diff = (datetime.now() - rent_time).total_seconds()
+                is_active = time_diff < 86400
                 
-                status = "✅ Đang hoạt động" if is_active else "❌ Đã mất tác dụng"
+                status = "🟢 Khả dụng (Chưa tới 24h)" if is_active else "🔴 Đã mất tác dụng (Quá 24h)"
                 text = (
                     f"📧 <b>CHI TIẾT ĐƠN THUÊ MAIL</b>\n"
                     f"{UI_DIVIDER}\n"
                     f"🆔 Mã Đơn: <code>{mail_item['order_id']}</code>\n"
-                    f"📧 Địa chỉ Email: <code>{mail_item['email']}</code>\n"
-                    f"🕒 Thời gian thuê: <code>{mail_item['time']}</code>\n"
-                    f"📊 Trạng thái: {status}\n"
+                    f"📧 Địa chỉ: <code>{mail_item['email']}</code>\n"
+                    f"🕒 Thời gian tạo: <code>{mail_item['time']}</code>\n"
+                    f"📊 Trạng thái: <b>{status}</b>\n"
                     f"{UI_DIVIDER}\n"
                     f"{UI_FOOTER}"
                 )
-                try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, parse_mode="HTML")
+                markup = InlineKeyboardMarkup()
+                if is_active:
+                    markup.add(InlineKeyboardButton(f"📥 Nhận mã code", callback_data=f"usr_getotp_{order_id}"))
+                    
+                try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode="HTML")
                 except: pass
 
         elif call.data.startswith("usr_sendbill_"):
@@ -464,7 +480,7 @@ def handle_admin_main(message):
             bot.register_next_step_handler(msg, process_admin_bank)
             
         elif message.text == "📝 Đổi Tiêu Đề":
-            msg = bot.send_message(message.chat.id, "📝 Nhập nội dung Tiêu Đề / Lời Chào mới muốn hiển thị khi khách ấn /start:")
+            msg = bot.send_message(message.chat.id, "📝 Nhập nội dung Menu / Lời Chào mới muốn hiển thị khi khách ấn /start:")
             bot.register_next_step_handler(msg, process_admin_title)
 
         elif message.text == "📊 Siêu Thống Kê":
@@ -617,7 +633,7 @@ def process_admin_title(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Lỗi thay đổi tiêu đề: {e}")
 
-# XỬ LÝ BROADCAST INLINE
+# XỬ LÝ BROADCAST INLINE CẢI TIẾN
 @bot.callback_query_handler(func=lambda call: call.data.startswith('brd_'))
 def handle_broadcast_inline(call):
     if call.from_user.id not in ADMINS: return
@@ -639,7 +655,8 @@ def process_brd_uid(message, has_media):
         target_uid = int(message.text.strip())
         msg = bot.send_message(message.chat.id, f"✍️ Gửi nội dung tin nhắn tới <code>{target_uid}</code>:", parse_mode="HTML")
         bot.register_next_step_handler(msg, execute_broadcast, target_uid, has_media)
-    except: bot.reply_to(message, "❌ UID sai định dạng.")
+    except: 
+        bot.reply_to(message, "❌ UID sai định dạng.")
 
 def execute_broadcast(message, target_uid, has_media):
     targets = [target_uid] if target_uid else list(DB_USERS.keys())
@@ -647,8 +664,12 @@ def execute_broadcast(message, target_uid, has_media):
     for uid in targets:
         try:
             if has_media:
-                if message.photo: bot.send_photo(uid, message.photo[-1].file_id, caption=message.caption, parse_mode="HTML")
-                elif message.video: bot.send_video(uid, message.video.file_id, caption=message.caption, parse_mode="HTML")
+                if message.photo: 
+                    bot.send_photo(uid, message.photo[-1].file_id, caption=message.caption, parse_mode="HTML")
+                elif message.video: 
+                    bot.send_video(uid, message.video.file_id, caption=message.caption, parse_mode="HTML")
+                else:
+                    bot.send_message(uid, message.text, parse_mode="HTML")
             else:
                 bot.send_message(uid, message.text, parse_mode="HTML")
             success += 1
