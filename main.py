@@ -3,16 +3,21 @@ import time
 import random
 import string
 import threading
+import json
+import html
+import asyncio
 from datetime import datetime, timedelta
 from flask import Flask, request
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 import requests
 
+from pp import TempMailNinjaProClient
+
 # ==========================================
 # CẤU HÌNH MÔI TRƯỜNG & KHỞI TẠO BOT
 # ==========================================
-API_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8669698846:AAGi3DIkUEi94YQT354zMemVs4HOXjPQoCs")
+API_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8905972506:AAFklMbUqeRb-cM4iCwB_t30xiCIpAG2VK4")
 WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST", "https://mail24h-bot.onrender.com")
 WEBHOOK_URL = f"{WEBHOOK_HOST}/{API_TOKEN}/"
 PORT = int(os.environ.get("PORT", 5000))
@@ -43,6 +48,45 @@ DB_STATS = {
     "spent": []
 }
 
+db_lock = threading.RLock()
+DB_FILE = "database.json"
+
+def load_data():
+    global DB_USERS, DB_BAN_LIST, DB_CONFIG, DB_STATS
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # Convert string keys back to int for DB_USERS and DB_BAN_LIST
+                DB_USERS = {int(k): v for k, v in data.get("users", {}).items()}
+                DB_BAN_LIST = {int(k): v for k, v in data.get("bans", {}).items()}
+                
+                # Cập nhật config (giữ nguyên cái mặc định nếu json thiếu)
+                saved_config = data.get("config", {})
+                for k, v in saved_config.items():
+                    DB_CONFIG[k] = v
+                
+                DB_STATS = data.get("stats", {"deposits": [], "users": [], "spent": []})
+        except Exception as e:
+            print(f"Lỗi load DB: {e}")
+
+def save_data():
+    with db_lock:
+        try:
+            data = {
+                "users": DB_USERS,
+                "bans": DB_BAN_LIST,
+                "config": DB_CONFIG,
+                "stats": DB_STATS
+            }
+            with open(DB_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"Lỗi save DB: {e}")
+
+# Gọi load data khi khởi chạy script
+load_data()
+
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 UI_DIVIDER = "══════════════════════"
 UI_FOOTER = (
@@ -67,54 +111,19 @@ HEADERS = {
     "Sec-Fetch-Site": "same-origin"
 }
 
-def buy_mail_account():
-    rand_prefix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
-    email_address = f"{rand_prefix}@maily.lat"
-    order_id = f"ORD{random.randint(1000000, 9999999)}"
-    return email_address, order_id
+# ==========================================
+# KHỞI CHẠY LUỒNG TEMPMAIL NINJA NGẦM
+# ==========================================
+mail_client = TempMailNinjaProClient()
+mail_loop = asyncio.new_event_loop()
+mail_creation_lock = threading.Lock()
 
-def get_mail_otp_full(email_address):
-    current_time = datetime.now().strftime("%b %d, %Y %I:%M %p +07")
-    otp_code = random.randint(100000, 999999)
-    username = email_address.split('@')[0]
-    
-    full_message = f"""(• 📜 Tin nhắn 1 của 1
----------------------------------
-• ↩️ Từ: "TikTok" <register@account.tiktok.com>
-• 🧾 Chủ đề: {otp_code} là mã gồm 6 chữ số của bạn
-• 💬 Tin nhắn: Sử dụng mã này để xác minh đây là tài khoản của bạn và không chia sẻ mã này với bất kỳ ai.
+def start_mail_thread():
+    asyncio.set_event_loop(mail_loop)
+    # Khởi động kết nối Websocket với chế độ auto_mode=True (không chặn màn hình)
+    mail_loop.run_until_complete(mail_client.start(auto_mode=True))
 
-Mã gồm 6 chữ số của TikTok
-
-Xin chào {username},
-
-Mã gồm 6 chữ số của bạn là: {otp_code}
-
-Hãy sử dụng mã này hoặc nhấn vào liên kết bên dưới để xác minh rằng @{username} là tài khoản TikTok của bạn.
-
-Xác minh ( https://www.tiktok.com/ucenter_web/deeplink/email_verification?SHORTCUT_NEED_LOGIN=SHORTCUT_NEED_LOGIN_NO&aid=1180&code=1b9f51b1-dc38-49f7-a2b3-5fc15309af9b&email={username}%40maily.lat&language=vi&locale=vi-VN&type=7 )
-
-Mã này có hiệu lực trong 20 phút
-
-Thời gian: {current_time}
-Vị trí: Quận 1, Việt Nam
-Loại thiết bị: Oppo CPH2473
-
-Chỉ nhập mã này vào ứng dụng hoặc trang web chính thức. Tuyệt đối không chia sẻ mã này với bất kỳ ai. Nếu bạn chia sẻ mã này, người khác có thể sẽ truy cập trái phép vào tài khoản TikTok của bạn, cùng với bất kỳ thông tin cá nhân hoặc nội dung nào liên quan đến tài khoản.
-
-Nếu bạn không yêu cầu mã này, có thể ai đó đang cố gắng truy cập vào tài khoản của bạn. Hãy cân nhắc cập nhật mật khẩu của bạn ngay lập tức thông qua ứng dụng TikTok.
-
-Vì sự an toàn của bạn:
-
-* Hãy cảnh giác với các liên kết hoặc tin nhắn đáng ngờ yêu cầu cung cấp thông tin đăng nhập của bạn
-* Hãy thực hiện các bước để bảo mật tài khoản của bạn ( https://www.tiktok.com/support/faq_detail?id=7543604780950624824&category=web_account )
-
-Email này được tạo cho {username}
-
-Chính sách quyền riêng tư · Trung tâm trợ giúp ( https://support.tiktok.com/ )
-
-TikTok 5800 Bristol Pkwy, Culver City, CA 90230)"""
-    return full_message
+threading.Thread(target=start_mail_thread, daemon=True).start()
 
 # ==========================================
 # HÀM TIỆN ÍCH HỆ THỐNG
@@ -133,20 +142,24 @@ def check_ban(user_id):
     return False, "", "", ""
 
 def init_user(user_id, username):
-    uname = username if username else f"User_{user_id}"
-    if user_id not in DB_USERS:
-        now_str = datetime.now().strftime(DATE_FORMAT)
-        DB_USERS[user_id] = {
-            "username": uname,
-            "balance": 0,
-            "total_deposit": 0,
-            "current_mail": {},
-            "history_mails": [],
-            "strikes": 0
-        }
-        DB_STATS["users"].append({"uid": user_id, "username": uname, "time": now_str})
-    else:
-        DB_USERS[user_id]["username"] = uname
+    uname = html.escape(username) if username else f"User_{user_id}"
+    with db_lock:
+        if user_id not in DB_USERS:
+            now_str = datetime.now().strftime(DATE_FORMAT)
+            DB_USERS[user_id] = {
+                "username": uname,
+                "balance": 0,
+                "total_deposit": 0,
+                "current_mail": {},
+                "history_mails": [],
+                "strikes": 0
+            }
+            DB_STATS["users"].append({"uid": user_id, "username": uname, "time": now_str})
+            save_data() # Lưu ngay khi có khách mới
+        else:
+            if DB_USERS[user_id]["username"] != uname:
+                DB_USERS[user_id]["username"] = uname
+                save_data()
 
 def gen_history_markup(u_data):
     markup = InlineKeyboardMarkup(row_width=1)
@@ -198,11 +211,11 @@ def get_admin_user_reply_keyboard():
 def command_start(message):
     try:
         user_id = message.from_user.id
-        uname = message.from_user.username if message.from_user.username else f"User_{user_id}"
+        uname = html.escape(message.from_user.username) if message.from_user.username else f"User_{user_id}"
         
         is_banned, b_date, reason, u_date = check_ban(user_id)
         if is_banned:
-            text = (f"🚫 <b>TÀI KHOẢN CỦA BẠN ĐÃ BỊ KHÓA</b>\n{UI_DIVIDER}\n👤 Username: @{uname}\n🛑 Lý do: {reason}\n⏳ Hạn: {u_date}\n\n✉️ Liên hệ:\n👑 Admin: @tangtuongtacsieureadmin\n🛠 Support: @Lecongdzzz\n{UI_DIVIDER}\n{UI_FOOTER}")
+            text = (f"🚫 <b>TÀI KHOẢN CỦA BẠN ĐÃ BỊ KHÓA</b>\n{UI_DIVIDER}\n👤 Username: @{uname}\n🛑 Lý do: {html.escape(reason)}\n⏳ Hạn: {u_date}\n\n✉️ Liên hệ:\n👑 Admin: @tangtuongtacsieureadmin\n🛠 Support: @Lecongdzzz\n{UI_DIVIDER}\n{UI_FOOTER}")
             bot.send_message(message.chat.id, text, parse_mode="HTML")
             return
             
@@ -266,33 +279,65 @@ def handle_user_menu(message):
 
         elif message.text == "📧 Thuê Mail":
             price = DB_CONFIG["price"]
-            if u_data['balance'] < price:
-                bot.send_message(message.chat.id, f"❌ Số dư không đủ <code>{price:,} VND</code>. Vui lòng nạp thêm!", parse_mode="HTML")
-                return
+            with db_lock:
+                if u_data['balance'] < price:
+                    bot.send_message(message.chat.id, f"❌ Số dư không đủ <code>{price:,} VND</code>. Vui lòng nạp thêm!", parse_mode="HTML")
+                    return
             
-            u_data['balance'] -= price
-            rent_time = datetime.now().strftime(DATE_FORMAT)
-            DB_STATS["spent"].append({"uid": user_id, "username": u_data['username'], "amount": price, "time": rent_time})
+            msg_status = bot.send_message(message.chat.id, "⏳ <b>Đang vượt tường lửa Cloudflare tạo Email. Vui lòng không thao tác gì thêm, đợi khoảng 15s...</b>", parse_mode="HTML")
             
-            new_email, order_id = buy_mail_account()
-            
-            mail_record = {"email": new_email, "order_id": order_id, "time": rent_time}
-            u_data['history_mails'].append(mail_record)
-            
-            text = (
-                f"✅ <b>! Email của bạn đã sẵn sàng để nhận tin nhắn:</b>\n"
-                f"===========================\n"
-                f"¦ <code>{new_email}</code> ¦\n"
-                f"===========================\n"
-                f"📬 ! Bây giờ bạn có thể nhận tin nhắn từ tất cả các trang web"
-            )
-            markup = InlineKeyboardMarkup(row_width=2)
-            markup.add(
-                InlineKeyboardButton("• Lấy tin nhắn •", callback_data=f"usr_getotp_{order_id}"),
-                InlineKeyboardButton("• Xóa email •", callback_data=f"usr_delemail_{order_id}")
-            )
-            markup.add(InlineKeyboardButton("• Quay lại •", callback_data="usr_histback"))
-            bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="HTML")
+            with mail_creation_lock:
+                try:
+                    new_tk = asyncio.run_coroutine_threadsafe(mail_client.create_new_email_token(), mail_loop).result()
+                    if not new_tk:
+                        bot.edit_message_text(chat_id=message.chat.id, message_id=msg_status.message_id, text="❌ Lỗi: Không thể vượt Captcha hệ thống mạng. Vui lòng thử lại sau.", parse_mode="HTML")
+                        return
+                    
+                    mail_client.save_local_token(new_tk)
+                    asyncio.run_coroutine_threadsafe(mail_client.action_initial_handshake(), mail_loop).result()
+                    
+                    # Cập nhật danh sách
+                    asyncio.run_coroutine_threadsafe(mail_client.action_fetch_emails_list(), mail_loop).result()
+                    
+                    new_email = mail_client.active_email
+                    if not new_email:
+                        bot.edit_message_text(chat_id=message.chat.id, message_id=msg_status.message_id, text="❌ Lỗi: Hệ thống không trả về email nào.", parse_mode="HTML")
+                        return
+                        
+                    order_id = f"ORD{random.randint(1000000, 9999999)}"
+                    
+                    with db_lock:
+                        if u_data['balance'] < price:
+                            bot.edit_message_text(chat_id=message.chat.id, message_id=msg_status.message_id, text="❌ Giao dịch thất bại do số dư thay đổi bất thường.", parse_mode="HTML")
+                            return
+                            
+                        u_data['balance'] -= price
+                        rent_time = datetime.now().strftime(DATE_FORMAT)
+                        DB_STATS["spent"].append({"uid": user_id, "username": u_data['username'], "amount": price, "time": rent_time})
+                        
+                        mail_record = {"email": new_email, "order_id": order_id, "time": rent_time}
+                        u_data['history_mails'].append(mail_record)
+                        save_data()
+                        
+                    text = (
+                        f"✅ <b>! Email của bạn đã sẵn sàng để nhận tin nhắn:</b>\n"
+                        f"===========================\n"
+                        f"¦ <code>{new_email}</code> ¦\n"
+                        f"===========================\n"
+                        f"Mã Đơn: <code>{order_id}</code>\n"
+                        f"Giá thuê: {price:,} VND\n"
+                        f"📬 ! Bây giờ bạn có thể nhận tin nhắn từ tất cả các trang web"
+                    )
+                    markup = InlineKeyboardMarkup(row_width=2)
+                    markup.add(
+                        InlineKeyboardButton("📩 Lấy tin nhắn", callback_data=f"usr_getotp_{order_id}"),
+                        InlineKeyboardButton("🗑 Xóa email", callback_data=f"usr_delemail_{order_id}")
+                    )
+                    markup.add(InlineKeyboardButton("• Quay lại •", callback_data="usr_histback"))
+                    bot.delete_message(chat_id=message.chat.id, message_id=msg_status.message_id)
+                    bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="HTML")
+                except Exception as e:
+                    bot.edit_message_text(chat_id=message.chat.id, message_id=msg_status.message_id, text=f"❌ Lỗi hệ thống API tạo mail: {e}", parse_mode="HTML")
 
         elif message.text == "💳 Nạp Tiền":
             memo_str = f"MAIL24H_{user_id}_{''.join(random.choices(string.ascii_uppercase, k=4))}"
@@ -350,8 +395,12 @@ def handle_user_inline(call):
                 bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode="HTML")
 
         elif call.data.startswith("usr_delemail_"):
-            order_id = call.data.split("_")[2]
-            u_data['history_mails'] = [m for m in u_data['history_mails'] if m['order_id'] != order_id]
+            parts = call.data.split("_")
+            if len(parts) < 3: return
+            order_id = parts[2]
+            with db_lock:
+                u_data['history_mails'] = [m for m in u_data['history_mails'] if m['order_id'] != order_id]
+                save_data()
             bot.answer_callback_query(call.id, "✅ Đã xóa email khỏi lịch sử!", show_alert=True)
             
             markup = gen_history_markup(u_data)
@@ -361,31 +410,78 @@ def handle_user_inline(call):
                 bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="⚠️ Bạn chưa có email nào khả dụng (trong 24h).", parse_mode="HTML")
 
         elif call.data.startswith("usr_getotp_"):
-            order_id = call.data.split("_")[2]
+            parts = call.data.split("_")
+            if len(parts) < 3: return
+            order_id = parts[2]
             price = DB_CONFIG["price"]
             
-            mail_item = next((item for item in u_data['history_mails'] if item['order_id'] == order_id), None)
-            if not mail_item:
-                bot.answer_callback_query(call.id, "❌ Không tìm thấy thông tin email này!", show_alert=True)
-                return
+            with db_lock:
+                mail_item = next((item for item in u_data['history_mails'] if item['order_id'] == order_id), None)
+                if not mail_item:
+                    bot.answer_callback_query(call.id, "❌ Không tìm thấy thông tin email này!", show_alert=True)
+                    return
+                    
+                rent_time = datetime.strptime(mail_item['time'], DATE_FORMAT)
+                if (datetime.now() - rent_time).total_seconds() >= 86400:
+                    bot.answer_callback_query(call.id, "❌ Email này đã quá 24h và bị xóa!", show_alert=True)
+                    return
+                    
+                if u_data['balance'] < price:
+                    bot.answer_callback_query(call.id, f"❌ Số dư không đủ {price:,} VND để lấy mã!", show_alert=True)
+                    return
                 
-            rent_time = datetime.strptime(mail_item['time'], DATE_FORMAT)
-            if (datetime.now() - rent_time).total_seconds() >= 86400:
-                bot.answer_callback_query(call.id, "❌ Email này đã quá 24h và bị xóa!", show_alert=True)
-                return
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="⏳ ! Đang tải tin nhắn từ Server Ninja...", parse_mode="HTML")
                 
-            if u_data['balance'] < price:
-                bot.answer_callback_query(call.id, f"❌ Số dư không đủ {price:,} VND để lấy mã!", show_alert=True)
+                u_data['balance'] -= price
+                now_str = datetime.now().strftime(DATE_FORMAT)
+                DB_STATS["spent"].append({"uid": user_id, "username": u_data['username'], "amount": price, "time": now_str})
+                save_data()
+            
+            try:
+                # Đồng bộ Inbox
+                asyncio.run_coroutine_threadsafe(mail_client.action_fetch_inbox(silent=True), mail_loop).result()
+                
+                found_msg = None
+                target_email = mail_item['email']
+                
+                if mail_client.messages_list:
+                    # Tìm message theo recipient, nếu không có thì lấy message đầu tiên làm mặc định (fallback)
+                    found_msg = mail_client.messages_list[0] 
+                    for msg in mail_client.messages_list:
+                        recip = msg.get('recipient') or msg.get('to') or ""
+                        if target_email in recip:
+                            found_msg = msg
+                            break
+                            
+                if not found_msg:
+                    # Hoàn tiền
+                    with db_lock:
+                        u_data['balance'] += price
+                        DB_STATS["spent"] = [s for s in DB_STATS["spent"] if not (s['time'] == now_str and s['amount'] == price)]
+                        save_data()
+                    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="❌ Chưa có tin nhắn nào được gửi tới. Đã hoàn tiền!", parse_mode="HTML")
+                    return
+                    
+                # Lấy chi tiết nội dung
+                msg_id = found_msg['id']
+                detail_res = asyncio.run_coroutine_threadsafe(mail_client.emit("get_email_message", [msg_id]), mail_loop).result()
+                
+                full_text_msg = "Không có nội dung rõ ràng, hãy kiểm tra tiêu đề."
+                subject = found_msg.get('subject', 'Không tiêu đề')
+                sender = found_msg.get('sender', {}).get('text', 'Ẩn danh')
+                
+                if detail_res and 'emailMessage' in detail_res:
+                    detail = detail_res['emailMessage'].get('data', {})
+                    full_text_msg = detail.get('text') or detail.get('html') or full_text_msg
+                    
+                display_text = f"<b>Từ:</b> <code>{html.escape(sender)}</code>\n<b>Tiêu đề:</b> <code>{html.escape(subject)}</code>\n\n<b>Nội dung:</b>\n<pre>{html.escape(full_text_msg[:1000])}</pre>"
+                
+            except Exception as e:
+                with db_lock:
+                    u_data['balance'] += price
+                    save_data()
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=f"❌ Lỗi mạng Ninja: {e}. Đã hoàn tiền!", parse_mode="HTML")
                 return
-            
-            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="⏳ ! Đang lấy tin nhắn, vui lòng đợi...", parse_mode="HTML")
-            time.sleep(1.5)
-            
-            u_data['balance'] -= price
-            now_str = datetime.now().strftime(DATE_FORMAT)
-            DB_STATS["spent"].append({"uid": user_id, "username": u_data['username'], "amount": price, "time": now_str})
-            
-            full_text_msg = get_mail_otp_full(mail_item['email'])
             
             markup = InlineKeyboardMarkup(row_width=2)
             markup.add(
@@ -394,7 +490,7 @@ def handle_user_inline(call):
             )
             markup.add(InlineKeyboardButton("• Quay lại •", callback_data="usr_histback"))
             
-            try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_text_msg, reply_markup=markup)
+            try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=display_text, reply_markup=markup, parse_mode="HTML")
             except: pass
 
         elif call.data.startswith("usr_sendbill_"):
@@ -603,36 +699,44 @@ def process_admin_del(message, admin_id):
 
 def process_admin_logo(message):
     try:
-        if message.photo:
-            DB_CONFIG["logo"] = message.photo[-1].file_id
-            bot.reply_to(message, "✅ Đã cập nhật Logo bằng Hình Ảnh trực tiếp!")
-        elif message.text:
-            DB_CONFIG["logo"] = message.text.strip()
-            bot.reply_to(message, "✅ Đã cập nhật Logo bằng Link URL!")
-        else:
-            bot.reply_to(message, "❌ Vui lòng gửi ảnh hoặc link.")
+        with db_lock:
+            if message.photo:
+                DB_CONFIG["logo"] = message.photo[-1].file_id
+                bot.reply_to(message, "✅ Đã cập nhật Logo bằng Hình Ảnh trực tiếp!")
+            elif message.text:
+                DB_CONFIG["logo"] = message.text.strip()
+                bot.reply_to(message, "✅ Đã cập nhật Logo bằng Link URL!")
+            else:
+                bot.reply_to(message, "❌ Vui lòng gửi ảnh hoặc link.")
+                return
+            save_data()
     except Exception as e:
         bot.reply_to(message, f"❌ Lỗi: {e}")
 
 def process_admin_bank(message):
     try:
-        if message.photo and message.caption:
-            DB_CONFIG["qr_bank"] = message.photo[-1].file_id
-            DB_CONFIG["bank_info"] = message.caption.strip()
-            bot.reply_to(message, "✅ Đã cập nhật cấu hình Ngân Hàng & QR Code bằng Hình Ảnh!")
-        elif message.text and "|" in message.text:
-            parts = message.text.split("|")
-            DB_CONFIG["qr_bank"] = parts[0].strip()
-            DB_CONFIG["bank_info"] = parts[1].strip()
-            bot.reply_to(message, "✅ Đã cập nhật cấu hình Ngân Hàng bằng Text!")
-        else:
-            bot.reply_to(message, "❌ Thất bại. Nhớ gửi hình ảnh bắt buộc phải KÈM CHỮ ở phần chú thích (caption).")
+        with db_lock:
+            if message.photo and message.caption:
+                DB_CONFIG["qr_bank"] = message.photo[-1].file_id
+                DB_CONFIG["bank_info"] = message.caption.strip()
+                bot.reply_to(message, "✅ Đã cập nhật cấu hình Ngân Hàng & QR Code bằng Hình Ảnh!")
+            elif message.text and "|" in message.text:
+                parts = message.text.split("|")
+                DB_CONFIG["qr_bank"] = parts[0].strip()
+                DB_CONFIG["bank_info"] = parts[1].strip()
+                bot.reply_to(message, "✅ Đã cập nhật cấu hình Ngân Hàng bằng Text!")
+            else:
+                bot.reply_to(message, "❌ Thất bại. Nhớ gửi hình ảnh bắt buộc phải KÈM CHỮ ở phần chú thích (caption).")
+                return
+            save_data()
     except Exception as e:
         bot.reply_to(message, f"❌ Lỗi: {e}")
 
 def process_admin_title(message):
     try:
-        DB_CONFIG["welcome_text"] = message.text.strip()
+        with db_lock:
+            DB_CONFIG["welcome_text"] = message.text.strip()
+            save_data()
         bot.reply_to(message, "✅ Đã thay đổi Tiêu Đề / Lời chào thành công! Hãy ấn /start để kiểm tra.")
     except Exception as e:
         bot.reply_to(message, f"❌ Lỗi thay đổi tiêu đề: {e}")
@@ -675,56 +779,78 @@ def execute_broadcast(message, target_uid):
 
 def process_admin_balance(message, action):
     try:
-        uid_str, amt_str = message.text.split("|")
-        target_uid = int(uid_str.strip())
-        amount = int(amt_str.strip())
-        if target_uid not in DB_USERS:
-            bot.reply_to(message, "❌ User chưa khởi tạo.")
+        parts = message.text.split("|")
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Định dạng phải là: <code>UID|Số_Tiền</code>", parse_mode="HTML")
             return
             
-        if action == "add":
-            DB_USERS[target_uid]["balance"] += amount
-            DB_USERS[target_uid]["total_deposit"] += amount
-            bot.reply_to(message, f"✅ Đã cộng <code>+{amount:,} VND</code> cho <code>{target_uid}</code>.", parse_mode="HTML")
-            try: bot.send_message(target_uid, f"🔔 <b>THÔNG BÁO:</b> Tài khoản của bạn được cộng <code>+{amount:,} VND</code>.", parse_mode="HTML")
-            except: pass
-        elif action == "sub":
-            DB_USERS[target_uid]["balance"] = max(0, DB_USERS[target_uid]["balance"] - amount)
-            bot.reply_to(message, f"✅ Đã trừ <code>-{amount:,} VND</code> của <code>{target_uid}</code>.", parse_mode="HTML")
-            try: bot.send_message(target_uid, f"⚠️ <b>CẢNH BÁO:</b> Tài khoản của bạn bị khấu trừ <code>-{amount:,} VND</code>.", parse_mode="HTML")
-            except: pass
-    except: bot.reply_to(message, "❌ Định dạng phải là: <code>UID|Số_Tiền</code>", parse_mode="HTML")
+        target_uid = int(parts[0].strip())
+        amount = int(parts[1].strip())
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Số tiền phải lớn hơn 0.")
+            return
+            
+        with db_lock:
+            if target_uid not in DB_USERS:
+                bot.reply_to(message, "❌ User chưa khởi tạo.")
+                return
+                
+            if action == "add":
+                DB_USERS[target_uid]["balance"] += amount
+                DB_USERS[target_uid]["total_deposit"] += amount
+                save_data()
+                bot.reply_to(message, f"✅ Đã cộng <code>+{amount:,} VND</code> cho <code>{target_uid}</code>.", parse_mode="HTML")
+                try: bot.send_message(target_uid, f"🔔 <b>THÔNG BÁO:</b> Tài khoản của bạn được cộng <code>+{amount:,} VND</code>.", parse_mode="HTML")
+                except: pass
+            elif action == "sub":
+                DB_USERS[target_uid]["balance"] = max(0, DB_USERS[target_uid]["balance"] - amount)
+                save_data()
+                bot.reply_to(message, f"✅ Đã trừ <code>-{amount:,} VND</code> của <code>{target_uid}</code>.", parse_mode="HTML")
+                try: bot.send_message(target_uid, f"⚠️ <b>CẢNH BÁO:</b> Tài khoản của bạn bị khấu trừ <code>-{amount:,} VND</code>.", parse_mode="HTML")
+                except: pass
+    except: bot.reply_to(message, "❌ Định dạng phải là: <code>UID|Số_Tiền</code> (Ví dụ: 12345678|50000)", parse_mode="HTML")
 
 def process_admin_ban(message):
     try:
-        uid_str, reason = message.text.split("|")
-        target_uid = int(uid_str.strip())
-        reason = reason.strip()
-        if target_uid not in DB_USERS:
-            bot.reply_to(message, "❌ User chưa khởi tạo.")
+        parts = message.text.split("|")
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Mẫu: <code>UID|Lý_Do</code>", parse_mode="HTML")
             return
-            
-        strikes = DB_USERS[target_uid].get("strikes", 0) + 1
-        DB_USERS[target_uid]["strikes"] = strikes
-        ban_date = datetime.now().strftime(DATE_FORMAT)
+        target_uid = int(parts[0].strip())
+        reason = parts[1].strip()
         
-        if strikes == 1:
-            unban_date = (datetime.now() + timedelta(days=3)).strftime(DATE_FORMAT)
-            DB_BAN_LIST[target_uid] = {"ban_date": ban_date, "reason": reason, "unban_date": unban_date}
-            bot.reply_to(message, f"⚠️ Cảnh cáo lần 1 UID <code>{target_uid}</code>. Khóa 3 ngày.", parse_mode="HTML")
-        else:
-            unban_date = "0"
-            DB_BAN_LIST[target_uid] = {"ban_date": ban_date, "reason": reason, "unban_date": unban_date}
-            bot.reply_to(message, f"🛑 Vi phạm lần 2. Khóa VĨNH VIỄN UID <code>{target_uid}</code>.", parse_mode="HTML")
+        with db_lock:
+            if target_uid not in DB_USERS:
+                bot.reply_to(message, "❌ User chưa khởi tạo.")
+                return
+                
+            strikes = DB_USERS[target_uid].get("strikes", 0) + 1
+            DB_USERS[target_uid]["strikes"] = strikes
+            ban_date = datetime.now().strftime(DATE_FORMAT)
+            
+            if strikes == 1:
+                unban_date = (datetime.now() + timedelta(days=3)).strftime(DATE_FORMAT)
+                DB_BAN_LIST[target_uid] = {"ban_date": ban_date, "reason": reason, "unban_date": unban_date}
+                save_data()
+                bot.reply_to(message, f"⚠️ Cảnh cáo lần 1 UID <code>{target_uid}</code>. Khóa 3 ngày.", parse_mode="HTML")
+            else:
+                unban_date = "0"
+                DB_BAN_LIST[target_uid] = {"ban_date": ban_date, "reason": reason, "unban_date": unban_date}
+                save_data()
+                bot.reply_to(message, f"🛑 Vi phạm lần 2. Khóa VĨNH VIỄN UID <code>{target_uid}</code>.", parse_mode="HTML")
     except: bot.reply_to(message, "❌ Sai định dạng. Mẫu: <code>UID|Lý_Do</code>", parse_mode="HTML")
 
 def process_admin_unban(message):
     try:
         target_uid = int(message.text.strip())
-        if target_uid in DB_BAN_LIST:
-            del DB_BAN_LIST[target_uid]
-        if target_uid in DB_USERS:
-            DB_USERS[target_uid]["strikes"] = 0
+        with db_lock:
+            if target_uid in DB_BAN_LIST:
+                del DB_BAN_LIST[target_uid]
+            if target_uid in DB_USERS:
+                DB_USERS[target_uid]["strikes"] = 0
+            save_data()
+            
         bot.reply_to(message, f"✅ Đã gỡ Ban / Xóa thẻ phạt cho UID <code>{target_uid}</code>.", parse_mode="HTML")
         try: bot.send_message(target_uid, "🎉 <b>CHÚC MỪNG:</b> Tài khoản đã được gỡ cấm. Gõ /start để tiếp tục.", parse_mode="HTML")
         except: pass
@@ -751,24 +877,30 @@ def handle_bill_approval(call):
 def process_bill_approve(message, target_uid, orig_msg_id, orig_chat_id):
     try:
         amount = int(message.text.strip())
-        if target_uid not in DB_USERS:
-            bot.reply_to(message, "❌ Người dùng chưa khởi tạo.")
+        if amount <= 0:
+            bot.reply_to(message, "❌ Số tiền nạp phải lớn hơn 0.")
             return
             
-        DB_USERS[target_uid]["balance"] += amount
-        DB_USERS[target_uid]["total_deposit"] += amount
-        
-        now_str = datetime.now().strftime(DATE_FORMAT)
-        uname = DB_USERS[target_uid]["username"]
-        DB_STATS["deposits"].append({"uid": target_uid, "username": uname, "amount": amount, "time": now_str})
-        
+        with db_lock:
+            if target_uid not in DB_USERS:
+                bot.reply_to(message, "❌ Người dùng chưa khởi tạo.")
+                return
+                
+            DB_USERS[target_uid]["balance"] += amount
+            DB_USERS[target_uid]["total_deposit"] += amount
+            
+            now_str = datetime.now().strftime(DATE_FORMAT)
+            uname = DB_USERS[target_uid]["username"]
+            DB_STATS["deposits"].append({"uid": target_uid, "username": uname, "amount": amount, "time": now_str})
+            save_data()
+            
         bot.reply_to(message, f"✅ Đã cộng <code>+{amount:,} VND</code>.", parse_mode="HTML")
         try: bot.edit_message_caption(chat_id=orig_chat_id, message_id=orig_msg_id, caption=f"✅ ĐÃ DUYỆT CỘNG: <code>+{amount:,} VND</code>\nBởi Admin: <code>{message.from_user.id}</code>", parse_mode="HTML")
         except: pass
         
         try: bot.send_message(target_uid, f"🎉 <b>NẠP THÀNH CÔNG:</b> Tài khoản của bạn được cộng <code>+{amount:,} VND</code>.", parse_mode="HTML")
         except: pass
-    except: bot.reply_to(message, "❌ Vui lòng nhập Số Tiền bằng ký tự số.")
+    except: bot.reply_to(message, "❌ Vui lòng nhập Số Tiền bằng ký tự số hợp lệ.")
 
 # ==========================================
 # KHỞI CHẠY KIẾN TRÚC WEBHOOK
